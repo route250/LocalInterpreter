@@ -1,11 +1,15 @@
-from flask import Flask, request, jsonify
-import subprocess
 
-app = Flask(__name__)
+import subprocess
+from quart import Quart, request, jsonify
+
+from .localcode import CodeRepo, CodeInter
+
+repo:CodeRepo = CodeRepo( './tmp' )
+app = Quart(__name__)
 
 @app.route('/execute', methods=['POST'])
-def execute():
-    data = request.json
+async def execute():
+    data = await request.get_json()
     code = data.get('code')
     if not code:
         return jsonify({'error': 'No code provided'}), 400
@@ -88,7 +92,7 @@ paths:
 """
 
 @app.route('/', methods=['GET'])
-def get_yaml():
+async def get_yaml():
     try:
         return SCHEMA
     except Exception as e:
