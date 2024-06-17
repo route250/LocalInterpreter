@@ -10,23 +10,23 @@ app = Quart(__name__)
 @app.route('/execute', methods=['POST'])
 async def execute():
     data = await request.get_json()
-    code = data.get('code')
-    if not code:
+    cmd_code = data.get('code')
+    if not cmd_code:
         return jsonify({'error': 'No code provided'}), 400
+    sid:str = data.get('sessionId')
 
     try:
         # Execute the code and capture the stdout and stderr separately
-        result = subprocess.run(
-            ['python3', '-c', code],
-            capture_output=True,
-            text=True
-        )
+        iter:CodeInter = await repo.get_session(sid)
+        out = await iter.command( cmd_code )
         return jsonify({
-            'stdout': result.stdout,
-            'stderr': result.stderr
+            'sessionId': iter.sid,
+            'stdout': out,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        repo.return_session( iter )
 
 SCHEMA="""openapi: 3.0.0
 info:
@@ -47,6 +47,10 @@ paths:
             schema:
               type: object
               properties:
+                sessionId:
+                  type: string
+                  description: REPL session id. create new session if not present.
+                  example: "abc123"
                 code:
                   type: string
                   description: The Python code to execute.
@@ -59,14 +63,14 @@ paths:
               schema:
                 type: object
                 properties:
+                  sessionId:
+                    type: string
+                    description: REPL session id. use next call.
+                    example: "abc123"
                   stdout:
                     type: string
                     description: The standard output from the executed code.
                     example: "Hello, World!\n"
-                  stderr:
-                    type: string
-                    description: The error output from the executed code.
-                    example: "SyntaxError: invalid syntax\n"
         '400':
           description: Invalid request
           content:

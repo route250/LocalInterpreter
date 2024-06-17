@@ -1,66 +1,134 @@
 import sys
 import os
-import subprocess
-
-from subprocess import CompletedProcess
+import re
+import asyncio
+from asyncio.subprocess import Process, create_subprocess_exec, create_subprocess_shell, PIPE, DEVNULL
+from concurrent.futures import ThreadPoolExecutor
 import time
 from uuid import UUID, uuid4
 import tempfile
 import glob
 
+TIMEFILE='.lastupdatetime'
+
+def escape_control_chars(text):
+    # 制御文字をエスケープ
+    return re.sub(r'[\n\r\t]', lambda x: repr(x.group(0)).strip("'"), text)
+
+async def arun( cmd: list[str]=None, cwd:str=None ):
+    proc:Process = await create_subprocess_exec( *cmd, stdout=PIPE, stderr=DEVNULL, cwd=cwd )
+    stdout,stderr = await proc.communicate()
+    retcode:int = proc.returncode
+    return retcode, stdout.decode(), stderr.decode()
+
+def write_to_textfile( filepath:str, content:list[str], mode:int=None ):
+    if isinstance(content,list):
+        with open( filepath, "w") as stream:
+            for line in content:
+                stream.write( line )
+                stream.write( '\n' )
+        if isinstance(mode,int):
+            os.chmod(filepath,mode)
+
+def read_time( dirpath:str ):
+    try:
+        filepath:str = os.path.join( dirpath, TIMEFILE)
+        if os.path.exists(filepath):
+            with open( filepath, mode='r' ) as stream:
+                line:str = stream.readline()
+            tm:float = float(line)
+            return tm
+    except:
+        return None
+
+def write_time( dirpath:str, tm:float=None ):
+    ret:float = None
+    try:
+        if not isinstance(tm,float):
+            tm = time.time()
+        filepath:str = os.path.join( dirpath, TIMEFILE)
+        with open( filepath, mode='w' ) as stream:
+            stream.write( f"{tm}\n")
+        ret = tm
+    except:
+        pass
+    return ret
+
 SCR_BUILD = 'build.sh'
-SCR_RUN = 'run.sh'
+SCR_SART = 'start.sh'
 SCR_CLEAN = 'clean.sh'
 scriptsss:dict = {
     SCR_BUILD: [ "#!/bin/bash",
             "set -ue",
-            "python3 -m venv .venv",
+            "exec 2>&1",
+            "if [ ! -x .venv/bin/activate ]; then",
+            "    python3 -m venv .venv",
+            "fi",
             "source .venv/bin/activate",
             "python3 -m pip install -U pip setuptools",
         ],
-    SCR_RUN: [ "#!/bin/bash",
+    SCR_SART: [ "#!/bin/bash",
             "set -ue",
-            "python3 -m venv .venv",
-            "source .venv/bin/activate",
-            "python3 -m pip install -U pip setuptools",
+            "exec 2>&1",
+            "source ../.venv/bin/activate",
+            "exec python3 -q -u -m code",
         ],
-    SCR_CLEAN: [],
 }
+
+def get_script( dirpath, name ):
+    if not os.path.isdir( dirpath ):
+        raise ValueError( f"parent dir {dirpath} is not directory")
+    content:list[str] = scriptsss.get(name)
+    if not isinstance(content,list):
+        raise ValueError( f"script {name} is not defined")
+    filepath = os.path.join( dirpath, name)
+    if not os.path.exists( filepath ):
+        raise ValueError( f"script {name} is not defined")
+    return filepath
 
 class CodeRepo:
     def __init__(self, parent:str ):
         if not os.path.isdir( parent ):
             raise ValueError( f"parent dir {parent} is not directory")
+        self.pool:ThreadPoolExecutor = ThreadPoolExecutor( max_workers=1 )
         self.parent = os.path.abspath(parent)
-        # 処理用スクリプト作成
-        for name,content in scriptsss.items():
-            if isinstance(content,list):
-                scrpath = os.path.join( self.parent, name)
-                with open( scrpath, "w") as stream:
-                    for line in content:
-                        stream.write( line )
-                        stream.write( '\n' )
-                os.chmod(scrpath,0o744)
-
-        self.code_list = {}
+        self._flg_setup:bool = False
+        self.idle_code = {}
+        self.used_code = {}
         self.wd_list:list = []
-        for p in glob.glob( os.path.join(self.parent,'**','.venv','bin','activate')):
-            print(f"dir {p}")
-            d_bin = os.path.dirname(p)
-            d_venv = os.path.dirname(d_bin)
-            dir = os.path.dirname(d_venv)
-            self.wd_list.append(dir)
 
-    def get_script(self, name ):
-        if not os.path.isdir( self.parent ):
-            raise ValueError( f"parent dir {self.parent} is not directory")
-        content:list[str] = scriptsss.get(name)
-        if not isinstance(content,list):
-            raise ValueError( f"script {name} is not defined")
-        scrpath = os.path.join( self.parent, name)
-        if not os.path.exists( scrpath ):
-            raise ValueError( f"script {name} is not defined")
-        return scrpath
+    async def get_script(self, name ):
+        loop = asyncio.get_running_loop()
+        filepath:str = await loop.run_in_executor( self.pool, get_script, self.parent,name )
+        return filepath
+
+    async def get_start_script(self):
+        return await self.get_script(SCR_SART)
+
+    async def setup(self):
+        if self._flg_setup:
+            return
+        self._flg_setup = True
+        # 処理用スクリプト作成
+        loop = asyncio.get_running_loop()
+        for name,content in scriptsss.items():
+            scrpath = os.path.join( self.parent, name)
+            await loop.run_in_executor( self.pool, write_to_textfile, scrpath, content, 0o744 )
+        # python仮想環境を構築
+        scrpath:str = await self.get_script( SCR_BUILD )
+        print(f"build dir {scrpath}")
+        proc:Process = await create_subprocess_exec( scrpath, stdout=PIPE, stderr=DEVNULL, cwd=self.parent )
+        stdout,stderr = await proc.communicate()
+        code:int = proc.returncode
+        print(f"[STDOUT] {stdout.decode()}")
+        print(f"[RETCODE] {code}")
+
+        for dirpath in glob.glob( os.path.join(self.parent,'*')):
+            tm:float = read_time(dirpath)
+            if isinstance(tm,float) and tm>0:
+                print(f"code directory {dirpath}")
+                sid:str = os.path.basename(dirpath)
+                self.wd_list.append( { 'sid':sid, 'tm': tm, 'path':dirpath} )
 
     def build_new_directory(self):
         if not os.path.isdir( self.parent ):
@@ -68,77 +136,107 @@ class CodeRepo:
         uniq:str = uuid4().hex
         cwd = os.path.join( self.parent, uniq )
         os.makedirs( cwd, exist_ok=False )
-        scrpath:str = self.get_script( SCR_BUILD )
         print(f"build dir {cwd}")
-        result:CompletedProcess = subprocess.run([ scrpath ], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        print(result.stdout)
-        print(result.stderr)
-        result.check_returncode()
-        return cwd
+        return { 'sid': uniq, 'tm': time.time(), 'path':cwd }
 
-    def create(self):
-        try:
-            wd = self.wd_list.pop()
-        except IndexError:
-            wd = self.build_new_directory()
-        code:CodeInter = CodeInter( self, wd )
-        self.code_list[code.uid] = code
+    async def create(self):
+        if not self._flg_setup:
+            await self.setup()
+        wd = self.build_new_directory()
+        sid = wd['sid']
+        cwd = wd['path']
+        code:CodeInter = CodeInter( self, sid, cwd )
+        await code.start()
+        self.used_code[code.sid] = code
         return code
 
-    def get_start_script(self):
-        return self.get_script(SCR_RUN)
+    async def get_session(self,sid):
+        if not self._flg_setup:
+            await self.setup()
+        if isinstance(sid,str) and sid in self.idle_code:
+            code = self.idle_code[sid]
+            del self.idle_code[sid]
+            self.used_code[sid] = code
+            return code
+        else:
+            return await self.create()
+
+    def return_session(self,code):
+        if isinstance(code,CodeInter):
+            if code.sid in self.used_code:
+                del self.used_code[code.sid]
+            self.idle_code[code.sid] = code
 
 class CodeInter:
-    def __init__(self, parent:CodeRepo, wd ):
+    def __init__(self, parent:CodeRepo, sid, wd ):
         if not os.path.isdir( wd ):
             raise ValueError( f"parent dir {wd} is not directory")
-        self.parent = parent
+        self.parent:CodeRepo = parent
+        self.sid:str = sid
         self.cwd = wd
         self.process = None
-        self.uid:str = uuid4().hex
-        self.ps1 = ">>>"+self.uid+">>>"
-        self.ps2 = "..."+self.uid+"..."
+        self.ps1 = ">>>"+self.sid+">>>"
+        self.ps2 = "..."+self.sid+"..."
         self.lasttime:float = time.time()
 
-    def start(self):
+    async def start(self):
         if not os.path.isdir( self.cwd ):
             raise ValueError( f"cwd {self.cwd} is not directory")
         self.lasttime:float = time.time()
-        scrpath:str = self.parent.get_start_script()
-        self.process:subprocess.Popen = subprocess.Popen([ scrpath ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
-        time.sleep(0.2)
-        self.send_command( "import sys" )
-        self.send_command( f"sys.ps2='\\n{self.ps2}\\n'" )
-        self.send_command( f"sys.ps1='\\n{self.ps1}\\n'" )
-        out = self.get_output()
-        print(f"[OUT]{out}")
+        scrpath:str = await self.parent.get_start_script()
+        try:
+            self.process:Process = await create_subprocess_exec( scrpath, stdin=PIPE, stdout=PIPE, stderr=DEVNULL, cwd=self.cwd)
+            await self.send_command( "import sys" )
+            await self.send_command( f"sys.ps2='\\n{self.ps2}\\n'" )
+            await self.send_command( f"sys.ps1='\\n{self.ps1}\\n'" )
+            out = await self.get_output()
+            print(f"[OUT]{out}")
+            self.lasttime:float = time.time()
+        except:
+            self.process.terminate()
+            self.process = None
 
-    def stop(self):
-        # プロセスを終了
-        self.process.stdin.write('exit()\n')
-        self.process.stdin.flush()
-        self.process.terminate()
-        self.process = None
-
-    def send_command(self,command):
+    def th_send_command(self,command):
         # コマンドを送信
         self.lasttime:float = time.time()
-        self.process.stdin.write(command + '\n')
-        self.process.stdin.flush()
+        self.process.stdin.write(command.encode())
+        self.process.stdin.write('\n'.encode())
 
-    def get_output(self):    
+    async def send_command(self,command):
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor( self.parent.pool, self.th_send_command, command )
+
+    async def get_output(self):
         # 結果を取得
         stdout = []
         while True:
             self.lasttime:float = time.time()
-            line = self.process.stdout.readline()
+            if self.process.stdout.at_eof():
+                break
+            line = (await self.process.stdout.readline()).decode()
             self.lasttime:float = time.time()
-            print(f"[dbg]{line}")
+            print(f"[dbg]{escape_control_chars(line)}")
             sline=line.strip()
             if sline == self.ps2:
                 line='...'
                 self.process.stdin.flush()
             elif sline == self.ps1:
+                if stdout[-1]=='\n':
+                    stdout.pop()
                 break
             stdout.append(line)
         return ''.join(stdout)
+
+    async def command(self, command ):
+        await self.send_command( command )
+        out = await self.get_output()
+        return out
+
+    def stop(self):
+        # プロセスを終了
+        try:
+            self.process.stdin.write('exit()\n'.encode())
+            self.process.terminate()
+        except:
+            pass
+        self.process = None

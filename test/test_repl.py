@@ -1,31 +1,41 @@
 import sys
 import os
-import subprocess
-
-from subprocess import CompletedProcess
-import time
-from uuid import UUID, uuid4
-import tempfile
-import glob
+import asyncio
 
 sys.path.append(os.getcwd())
 from LocalInterpreter.localcode import CodeRepo, CodeInter
 
-def main():
+async def main():
     repo:CodeRepo = CodeRepo( './tmp' )
-    code:CodeInter = repo.create()
-    code.start()
-    code.send_command('print("Hello from custom prompt!")')
-    out = code.get_output()
+    await repo.setup()
+    code:CodeInter = await repo.create()
+    await code.send_command('print("Hello from custom prompt!")')
+    out = await code.get_output()
     print(f"[OUT]{out}")
-    code.send_command('x = 5')
-    out = code.get_output()
+    out = await code.command('x = 5')
     print(f"[OUT]{out}")
-    code.send_command('print(f"x is {x}")')
-    out = code.get_output()
+    out = await code.command('print(f"x is {x}")')
+    print(f"[OUT]{out}")
+
+    code.stop()
+
+async def main2():
+    repo:CodeRepo = CodeRepo( './tmp' )
+    sid:str = None
+    code:CodeInter = await repo.get_session( sid )
+    sid = code.sid
+    await code.send_command('print("Hello from custom prompt!")')
+    out = await code.get_output()
+    print(f"[OUT]{out}")
+    out = await code.command('x = 5')
+    print(f"[OUT]{out}")
+    repo.return_session( code )
+
+    code2:CodeInter = await repo.get_session( sid )
+    out = await code2.command('print(f"x is {x}")')
     print(f"[OUT]{out}")
 
     code.stop()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run( main2() )
