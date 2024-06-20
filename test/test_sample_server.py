@@ -2,7 +2,7 @@
 import sys,os
 from quart import Quart, request, Response, jsonify
 sys.path.append(os.getcwd())
-from LocalInterpreter.localcode import CodeRepo, CodeSession
+from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
 
 repo:CodeRepo = CodeRepo( './tmp' )
 app = Quart(__name__)

@@ -3,7 +3,7 @@ import os
 import asyncio
 
 sys.path.append(os.getcwd())
-from LocalInterpreter.localcode import CodeRepo, CodeSession
+from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
 
 async def main():
     repo:CodeRepo = CodeRepo( './tmp' )
