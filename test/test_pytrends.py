@@ -75,11 +75,28 @@ def related_keyword( *args ):
     pytrends.build_payload( kw_list=kw, timeframe='2023-05-01 2023-06-01', geo='JP' )
     queries = pytrends.related_queries()
 
+    topic_dict:list = {}
     for w in kw:
-        aa = queries[w]['top']
-        print(aa)
+        aa:pd.DataFrame = queries[w]['top']
+        for r, row in aa.iterrows():
+            value = row['value']
+            topic = row['topic_title']
+            value = max( value, topic_dict.get(topic,0) )
+            topic_dict[topic] = value
         bb = queries[w]['rising']
-        print(bb)
+        for r, row in bb.iterrows():
+            value = row['value']
+            topic = row['topic_title']
+            value = max( value, topic_dict.get(topic,0) )
+            topic_dict[topic] = value
+    # 辞書をintの降順でソートし、キーのリストを作成
+    sorted_keys = [k for k, v in sorted(topic_dict.items(), key=lambda item: item[1], reverse=True)]
+    # 部分文字列を排除
+    result = []
+    for s in sorted_keys:
+        if not any(s != other and s in other for other in sorted_keys):
+            result.add(s)
+    return result
 
 def related_topics( *args ):
     # キーワードに関連するキーワードを取得する
@@ -95,23 +112,28 @@ def related_topics( *args ):
     pytrends.build_payload( kw_list=kw, timeframe='2023-05-01 2023-06-01', geo='JP' )
     queries = pytrends.related_topics()
 
-    mmm:list = {}
+    topic_dict:list = {}
     for w in kw:
         aa:pd.DataFrame = queries[w]['top']
         for r, row in aa.iterrows():
             value = row['value']
             topic = row['topic_title']
-            value = max( value, mmm.get(topic,0) )
-            mmm[topic] = value
+            value = max( value, topic_dict.get(topic,0) )
+            topic_dict[topic] = value
         bb = queries[w]['rising']
         for r, row in bb.iterrows():
             value = row['value']
             topic = row['topic_title']
-            value = max( value, mmm.get(topic,0) )
-            mmm[topic] = value
+            value = max( value, topic_dict.get(topic,0) )
+            topic_dict[topic] = value
     # 辞書をintの降順でソートし、キーのリストを作成
-    sorted_keys = [k for k, v in sorted(mmm.items(), key=lambda item: item[1], reverse=True)]
-    return sorted_keys
+    sorted_keys = [k for k, v in sorted(topic_dict.items(), key=lambda item: item[1], reverse=True)]
+    # 部分文字列を排除
+    result = []
+    for s in sorted_keys:
+        if not any(s != other and s in other for other in sorted_keys):
+            result.add(s)
+    return result
 
 def realtime_trending():
     # category
