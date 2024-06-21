@@ -34,20 +34,21 @@ class PythonService(QService):
         ))
         self.add_response( p200 )
 
-    async def setup(self):
+    async def before_serving(self):
         await self.repo.setup()
 
     async def service(self,path):
-        data = await request.get_json()
-        cmd_code = data.get('code')
-        if not cmd_code:
-            return jsonify({'error': 'No code provided'}), 400
-        sessionId:str = data.get('sessionId')
+        data_json = await self.request_get_json()
+        sessionId:str = data_json.get('sessionId')
+        cmd_code = data_json.get('code')
 
         try:
             # Execute the code and capture the stdout and stderr separately
             iter:CodeSession = await self.repo.get_session(sessionId)
-            out = await iter.command( cmd_code )
+            if cmd_code:
+                out = await iter.command( cmd_code )
+            else:
+                out = ''
             return jsonify({
                 'sessionId': iter.sessionId,
                 'stdout': out,

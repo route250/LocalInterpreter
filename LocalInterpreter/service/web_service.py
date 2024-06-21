@@ -25,12 +25,13 @@ class WebSearchService(QService):
         ))
         self.add_response( p200 )
 
-    async def setup(self):
-        pass
+    async def before_serving(self):
+        from dotenv import load_dotenv, find_dotenv
+        load_dotenv( find_dotenv('.env_google') )
 
     async def service(self,path):
-        data = await request.get_json()
-        keyword = data.get(INP_KEYWORD)
+        data_json = await self.request_get_json()
+        keyword = data_json.get(INP_KEYWORD)
         if not keyword:
             return jsonify({'error': f'No {INP_KEYWORD} provided'}), 400
 
@@ -60,12 +61,12 @@ class WebGetService(QService):
         ))
         self.add_response( p200 )
 
-    async def setup(self):
+    async def before_serving(self):
         pass
 
     async def service(self,path):
-        data = await request.get_json()
-        url = data.get(INP_URL)
+        data_json = await self.request_get_json()
+        url = data_json.get(INP_URL)
         if not url:
             return jsonify({'error': f'No {INP_URL} provided'}), 400
 

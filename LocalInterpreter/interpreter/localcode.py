@@ -129,7 +129,7 @@ class CodeRepo:
             await asyncio.sleep(self.timer_inverval)
             dellist:list[CodeSession] = []
             async with self.lock:
-                print( "[Repo] timer ")
+                # print( "[Repo] timer ")
                 for sessionId,session in self.session_list.items():
                     t = time.time() - session.lasttime
                     if t>self.session_live_sec:

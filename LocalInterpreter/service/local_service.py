@@ -1,4 +1,6 @@
 import sys,os
+import json
+import traceback
 from quart import Quart, request, Response, jsonify
 sys.path.append(os.getcwd())
 from LocalInterpreter.service.schema import ServiceSchema, BaseService, ServiceParam, ServiceResponse
@@ -11,6 +13,21 @@ class QService(BaseService):
 
     async def before_serving(self):
         pass
+
+    async def time_service(self):
+        pass
+
+    async def request_get_json(self):
+        try:
+            testb:bytes = await request.get_data()
+            # text:str = testb.decode()
+            data_json = json.loads( testb )
+            #data_json = await request.get_json()
+            if data_json:
+                return data_json
+        except:
+            traceback.print_exc()
+        return {}
 
     async def service(self,subpath):
         print( f"[QServ] path:{subpath} baseurl:{request.base_url}")
@@ -33,7 +50,7 @@ class QServer(Quart,ServiceSchema):
 
     def add_service(self, path:str, service:QService):
         ServiceSchema.add_service(self, path, service )
-        key:str = f"{service.method}!!{path}"
+        key:str = f"{service.method.upper()}!!{path}"
         self._service_ref[key] = service
 
     async def _x_before_serving(self):
@@ -44,7 +61,7 @@ class QServer(Quart,ServiceSchema):
 
     async def _serve(self,subpath):
         print( f"[Serv] path:{subpath} baseurl:{request.base_url}")
-        key:str = f"{request.method}!!{subpath}"
+        key:str = f"{request.method.upper()}!!/{subpath}"
         service:QService = self._service_ref.get(key)
         if service:
             return await service.service(subpath)
