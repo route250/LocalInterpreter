@@ -7,7 +7,9 @@ from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
 
 class PythonService(QService):
     def __init__(self):
-        super().__init__('POST')
+        super().__init__('post')
+        self.summary = 'python interpreter'
+        self.description = 'python interpreter'
         self.repo:CodeRepo = CodeRepo( './tmp' )
         self.params.append( ServiceParam(
             'sessionId', 'string', 

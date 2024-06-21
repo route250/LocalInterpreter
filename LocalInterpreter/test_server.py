@@ -8,11 +8,11 @@ from LocalInterpreter.service.web_service import WebSearchService, WebGetService
 def test():
     app = QServer(__name__)
     pys:PythonService = PythonService()
-    app.add_service( 'pythoninterpreter', pys )
+    app.add_service( '/pythoninterpreter', pys )
     webs:WebSearchService = WebSearchService()
-    app.add_service( 'websearch', webs )
+    app.add_service( '/websearch', webs )
     webg:WebGetService = WebGetService()
-    app.add_service( 'webget', webg )
+    app.add_service( '/webget', webg )
 
     for line in app.to_yaml( request_url='http://127.0.0.1:5000'):
         print( line )

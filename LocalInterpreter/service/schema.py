@@ -43,9 +43,9 @@ class ServiceParam:
     def to_yaml(self, lv ):
         indent:str = idt(lv)
         yield f"{indent}{self.name}:"
-        yield f"{indent}  type: {self.type}:"
-        yield f"{indent}  description: {self.description}:"
-        yield f"{indent}  example: {self.example}:"
+        yield f"{indent}  type: {self.type}"
+        yield f"{indent}  description: {self.description}"
+        yield f"{indent}  example: {self.example}"
 
 class ServiceResponse:
     def __init__(self, code:int, description:str):
@@ -59,7 +59,7 @@ class ServiceResponse:
     def to_yaml(self, lv ):
         indent:str = idt(lv)
         yield f"{indent}'{self.code}':"
-        yield f"{indent}  description: {self.description}:"
+        yield f"{indent}  description: {self.description}"
         yield f"{indent}  content:"
         yield f"{indent}    application/json:"
         yield f"{indent}      schema:"
@@ -141,6 +141,7 @@ class PythonService(BaseService):
 class ServiceSchema:
     def __init__(self, title:str=""):
         self.title:str = title
+        self.version:str = '0.0.1'
         self.servers:dict = {}
         self.path_dict:dict[str,dict[str,BaseService]] = {}
     
@@ -157,6 +158,8 @@ class ServiceSchema:
     def to_yaml(self, request_url:str=None):
         yield "openai: 3.0.0"
         yield "info:"
+        yield f"  title: {self.title}"
+        yield f"  version: {self.version}"
         yield "servers:"
         for server_url,description in self.servers.items():
             yield f"  - url: {server_url}"

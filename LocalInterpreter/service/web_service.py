@@ -9,7 +9,7 @@ INP_KEYWORD = 'keyword'
 OUT_RESULTS = 'results'
 class WebSearchService(QService):
     def __init__(self):
-        super().__init__('POST')
+        super().__init__('post')
         self.summary = 'google search api'
         self.description = 'google search api'
         self.params.append( ServiceParam(
@@ -44,7 +44,7 @@ INP_URL = 'url'
 OUT_CONTENT = 'content'
 class WebGetService(QService):
     def __init__(self):
-        super().__init__('POST')
+        super().__init__('post')
         self.summary = 'get content from web page'
         self.description = 'get html from web page and convert to content by text'
         self.params.append( ServiceParam(
