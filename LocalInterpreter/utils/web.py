@@ -10,7 +10,7 @@ from googleapiclient.discovery import build
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
 
-def google_search( keyword, *,lang:str='ja', num:int=10, debug=False ):
+def google_search( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[dict]:
 
     # API KEY
     api_key = os.environ.get(ENV_GCP_API_KEY)
