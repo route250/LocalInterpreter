@@ -4,6 +4,7 @@
 from quart import request, Response, jsonify
 from LocalInterpreter.service.local_service import QService, ServiceParam, ServiceResponse
 import LocalInterpreter.utils.web as web
+import LocalInterpreter.utils.trends as trends
 
 INP_KEYWORD = 'keyword'
 OUT_RESULTS = 'results'
@@ -73,5 +74,28 @@ class WebGetService(QService):
         try:
             result:str = web.get_text_from_url( url )
             return result
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+class WebTrendService(QService):
+    def __init__(self):
+        super().__init__('get')
+        self.summary = "Today's trending search keywords"
+        self.description = 'get keywords from google trends'
+        p200:ServiceResponse = ServiceResponse( 200, 'Successful execution' )
+        p200.add_param( ServiceParam(
+            OUT_CONTENT, 'string',
+            'todays search keyword',
+            'ネコ キャットフード ねこじゃらし'
+        ))
+        self.add_response( p200 )
+
+    async def before_serving(self):
+        pass
+
+    async def service(self,path):
+        try:
+            result:list[str] = trends.today_searches()
+            return ' '.join(result)
         except Exception as e:
             return jsonify({'error': str(e)}), 500

@@ -98,15 +98,16 @@ class BaseService:
         indent:str = idt(lv)
         yield f"{indent}summary: {self.summary}"
         yield f"{indent}description: {self.description}"
-        yield f"{indent}requestBody:"
-        yield f"{indent}  required: true"
-        yield f"{indent}  content:"
-        yield f"{indent}    application/json:"
-        yield f"{indent}      schema:"
-        yield f"{indent}        type: object"
-        yield f"{indent}        properties:"
-        for param in self.params:
-            yield from param.to_yaml( lv+5 )
+        if self.params:
+            yield f"{indent}requestBody:"
+            yield f"{indent}  required: true"
+            yield f"{indent}  content:"
+            yield f"{indent}    application/json:"
+            yield f"{indent}      schema:"
+            yield f"{indent}        type: object"
+            yield f"{indent}        properties:"
+            for param in self.params:
+                yield from param.to_yaml( lv+5 )
         yield f"{indent}responses:"
         for code, resp in sorted(self.responses.items()):
             yield from resp.to_yaml( lv+1 )

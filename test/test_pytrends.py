@@ -4,10 +4,12 @@ sys.path.append(os.getcwd())
 import LocalInterpreter.utils.trends as trends
 
 def main():
-    # trending_searches()
-    trends.suggestions( "ハムスター")
-    # related_topics( "健康診断")
+    #ret = trends.trending_searches()
     # realtime_trending()
+    ret = trends.today_searches()
+
+    # trends.suggestions( "ハムスター")
+    # trends.related_topics( "健康診断")
     #related_keyword( '科学技術' )
     # gtrend = {
     #     "startday": "2024-05-23",
@@ -17,6 +19,7 @@ def main():
     # ret = chk_gtrend(gtrend)
     # print(ret)
     # today_searches()
+    print(ret)
 
 if __name__ == "__main__":
     main()
