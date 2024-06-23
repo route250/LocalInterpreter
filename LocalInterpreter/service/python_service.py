@@ -6,11 +6,13 @@ from LocalInterpreter.service.local_service import QService, ServiceParam, Servi
 from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
 
 class PythonService(QService):
-    def __init__(self):
+    def __init__(self, *, directory:str=None):
         super().__init__('post')
         self.summary = 'python interpreter'
         self.description = 'python interpreter'
-        self.repo:CodeRepo = CodeRepo( './tmp' )
+        if not isinstance(directory,str):
+            directory = './tmp'
+        self.repo:CodeRepo = CodeRepo( directory )
         self.params.append( ServiceParam(
             'sessionId', 'string', 
             'The session ID for maintaining the execution context. If left blank, a new session will be created and the session ID will be returned as part of the response. If provided, it should be the session ID from the previous call. Sessions expire after a certain period, and if an expired session ID is provided, a new session will be created and its ID will be returned.',
