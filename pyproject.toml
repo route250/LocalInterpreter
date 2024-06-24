@@ -20,5 +20,5 @@ classifiers = [
     "Operating System :: OS Independent",
     ]
 dependencies = [
-    "python-dotenv", "Quart", "bs4", "google-api-python-client", "pytrends"
+    "python-dotenv", "Quart", "bs4", "google-api-python-client", "pytrends", "openai", "tiktoken"
     ]

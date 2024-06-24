@@ -1,12 +1,12 @@
 
 import sys,os
 sys.path.append(os.getcwd())
-from LocalInterpreter.service.local_service import QServer, QService
+from LocalInterpreter.service.local_service import QuartServerBase, QuartServiceBase
 from LocalInterpreter.service.python_service import PythonService
 from LocalInterpreter.service.web_service import WebSearchService, WebGetService, WebTrendService
 
 def test():
-    app = QServer(__name__)
+    app = QuartServerBase(__name__)
     pys:PythonService = PythonService()
     app.add_service( '/pythoninterpreter', pys )
     webs:WebSearchService = WebSearchService()

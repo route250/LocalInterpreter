@@ -5,7 +5,7 @@ from quart import Quart, request, Response, jsonify
 sys.path.append(os.getcwd())
 from LocalInterpreter.service.schema import ServiceSchema, BaseService, ServiceParam, ServiceResponse
 
-class QService(BaseService):
+class QuartServiceBase(BaseService):
     def __init__(self,method):
         BaseService.__init__(self,method)
         self.summary = ""
@@ -32,12 +32,12 @@ class QService(BaseService):
     async def service(self,subpath):
         print( f"[QServ] path:{subpath} baseurl:{request.base_url}")
 
-class QServer(Quart,ServiceSchema):
+class QuartServerBase(Quart,ServiceSchema):
 
     def __init__(self,import_name):
         Quart.__init__(self,import_name)
         ServiceSchema.__init__(self,import_name)
-        self._service_ref:dict[str,QService] = {}
+        self._service_ref:dict[str,QuartServiceBase] = {}
         @self.before_serving
         async def _xx_before():
             await self._x_before_serving()
@@ -48,7 +48,7 @@ class QServer(Quart,ServiceSchema):
         async def _xx_rserv():
             return await self._serve('/')
 
-    def add_service(self, path:str, service:QService):
+    def add_service(self, path:str, service:QuartServiceBase):
         ServiceSchema.add_service(self, path, service )
         key:str = f"{service.method.upper()}!!{path}"
         self._service_ref[key] = service
@@ -62,7 +62,7 @@ class QServer(Quart,ServiceSchema):
     async def _serve(self,subpath):
         print( f"[Serv] path:{subpath} baseurl:{request.base_url}")
         key:str = f"{request.method.upper()}!!/{subpath}"
-        service:QService = self._service_ref.get(key)
+        service:QuartServiceBase = self._service_ref.get(key)
         if service:
             return await service.service(subpath)
         else:

@@ -1,11 +1,10 @@
 
-
-
 from quart import request, Response, jsonify
-from LocalInterpreter.service.local_service import QService, ServiceParam, ServiceResponse
+from LocalInterpreter.service.local_service import QuartServiceBase, ServiceParam, ServiceResponse
 from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
+import LocalInterpreter.utils.web as web
 
-class PythonService(QService):
+class PythonService(QuartServiceBase):
     def __init__(self, *, directory:str=None):
         super().__init__('post')
         self.summary = 'python interpreter'
@@ -22,6 +21,11 @@ class PythonService(QService):
             'code', 'string',
             'The Python code to execute.',
             '\"print(\'Hello, World!\')\"',
+        ) )
+        self.params.append( ServiceParam(
+            'download_url', 'string',
+            'Download a file from a URL to the session directory using the http get method.Blank if not needed',
+            'https://sample.domain.com/data/file.gz',
         ) )
         p200:ServiceResponse = ServiceResponse( 200, 'Successful execution' )
         p200.add_param( ServiceParam(
@@ -43,17 +47,23 @@ class PythonService(QService):
         data_json = await self.request_get_json()
         sessionId:str = data_json.get('sessionId')
         cmd_code = data_json.get('code')
+        download_url = data_json.get('download_url')
 
         try:
+            result_out:list[str] = []
+            session:CodeSession = await self.repo.get_session(sessionId)
+            if download_url:
+                filename, mesg = await session.download_from_url( download_url )
+                result_out.append( mesg )
             # Execute the code and capture the stdout and stderr separately
-            iter:CodeSession = await self.repo.get_session(sessionId)
             if cmd_code:
-                out = await iter.command( cmd_code )
-            else:
-                out = ''
+                out = await session.command( cmd_code )
+                result_out.append(out)
+
             return jsonify({
-                'sessionId': iter.sessionId,
-                'stdout': out,
+                'sessionId': session.sessionId,
+                'stdout': '\n\n'.join(result_out),
             })
+
         except Exception as e:
             return jsonify({'error': str(e)}), 500

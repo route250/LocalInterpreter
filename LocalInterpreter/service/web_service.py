@@ -1,14 +1,12 @@
 
-
-
 from quart import request, Response, jsonify
-from LocalInterpreter.service.local_service import QService, ServiceParam, ServiceResponse
+from LocalInterpreter.service.local_service import QuartServiceBase, ServiceParam, ServiceResponse
 import LocalInterpreter.utils.web as web
 import LocalInterpreter.utils.trends as trends
 
 INP_KEYWORD = 'keyword'
 OUT_RESULTS = 'results'
-class WebSearchService(QService):
+class WebSearchService(QuartServiceBase):
     def __init__(self):
         super().__init__('post')
         self.summary = 'google search api'
@@ -44,7 +42,7 @@ class WebSearchService(QService):
 
 INP_URL = 'url'
 OUT_CONTENT = 'content'
-class WebGetService(QService):
+class WebGetService(QuartServiceBase):
     def __init__(self):
         super().__init__('post')
         self.summary = 'get content from web page'
@@ -70,14 +68,21 @@ class WebGetService(QService):
         url = data_json.get(INP_URL)
         if not url:
             return jsonify({'error': f'No {INP_URL} provided'}), 400
-
+        limit = 1000
         try:
             result:str = web.get_text_from_url( url )
+            if not result or len(result)==0:
+                result = f"Can not extracted from {url}."
+            elif len(result)<limit:
+                result = f"Text extracted from {url}.\n\n{result}"
+            elif len(result)>limit:
+                summary_text = web.get_summary_from_text( result, length=limit )
+                result = f"Text summarized from {url}.\n\n{summary_text}"
             return result
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-class WebTrendService(QService):
+class WebTrendService(QuartServiceBase):
     def __init__(self):
         super().__init__('get')
         self.summary = "Today's trending search keywords"

@@ -10,6 +10,8 @@ from uuid import UUID, uuid4
 import tempfile
 import glob
 
+from LocalInterpreter.utils import web
+
 TIMEFILE='.lastupdatetime'
 
 def escape_control_chars(text):
@@ -254,6 +256,11 @@ class CodeSession:
         await self.send_command( command )
         out = await self.get_output()
         return out
+
+    async def download_from_url(self, url ):
+        loop = asyncio.get_running_loop()
+        filename, mesg = await loop.run_in_executor( self.parent.pool, web.download_from_url, url, self.cwd  )
+        return filename, mesg
 
     @staticmethod
     def _th_stop_1(process:Process):

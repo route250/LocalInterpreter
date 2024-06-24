@@ -3,12 +3,27 @@ import sys,os
 import re
 import json
 from urllib import request
+import mimetypes
 
 from bs4 import BeautifulSoup, Tag, Comment
 from googleapiclient.discovery import build
+from openai import OpenAI, OpenAIError
+from httpx import Timeout
+import tiktoken
 
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
+
+# MIMEタイプと拡張子の対応表
+mimetypes.init()
+mimetypes.add_type('text/html', '.html')
+mimetypes.add_type('text/plain', '.txt')
+mimetypes.add_type('application/pdf', '.pdf')
+mimetypes.add_type('image/jpeg', '.jpg')
+mimetypes.add_type('image/png', '.png')
+mimetypes.add_type('image/gif', '.gif')
+mimetypes.add_type('application/zip', '.zip')
+mimetypes.add_type('application/octet-stream', '.bin')
 
 def google_search( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[dict]:
 
@@ -73,6 +88,68 @@ def strip_tag_text(tag:Tag):
             continue
         text += remove_symbols(child.text)
     return text
+
+
+def download_from_url(url, *, directory, file_name:str=None) -> tuple[str,str]:
+    try:
+        # フォルダが存在しない場合
+        if not os.path.exists(directory):
+            return None, f"\"{directory}\" is not directory."
+
+        # HTTPヘッダー情報を取得するためにリクエストを送信
+        with request.urlopen(url) as response:
+            # ヘッダーからファイル名を取得
+            content_filename = None
+            content_type = response.info().get('Content-Type')
+            content_disposition = response.info().get('Content-Disposition')
+            if content_disposition:
+                file_name_match = re.findall('filename="(.+)"', content_disposition)
+                if file_name_match:
+                    content_filename = file_name_match[0]
+                    if not content_filename:
+                        content_filename = None
+            # Content-Typeから拡張子を推定
+            content_ext = ''
+            if content_type:
+                ext = mimetypes.guess_extension(content_type.split(';')[0])
+                if ext:
+                    if ext.startswith('.'):
+                        content_ext = ext
+                    else:
+                        content_ext = f".{content_ext}"
+            # ファイル名を決める
+            dst_filename = file_name
+            if not dst_filename:
+                dst_filename = content_filename
+            if not dst_filename:
+                dst_filename = os.path.basename(url)
+            if not dst_filename:
+                for num in range(1000):
+                    dst_filename = f"data{num:03}{content_ext}"
+                    if not os.path.exists( os.path.join(directory, dst_filename ) ):
+                        break
+            # 上書きフラグ
+            dst_path = os.path.join(directory,dst_filename)
+            dst_exists:bool = os.path.exists( dst_path )    
+
+            # ファイルを保存
+            with open(dst_path, 'wb') as stream:
+                stream.write(response.read())
+
+        if dst_exists:
+            msg = f"The downloaded file has been overwritten and saved as \"{dst_filename}\"."
+        else:
+            msg = f"The downloaded file is newly saved as \"{dst_filename}\"."
+
+        if content_type:
+            msg = f"{msg} content-type is {content_type}."
+        if content_disposition:
+            msg = f"{msg} content-disposition is {content_disposition}."
+
+        return dst_filename, msg
+
+    except Exception as ex:
+        return None, f"ERROR: {ex}"
 
 def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
     try:
@@ -151,3 +228,101 @@ def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
     except:
         print(f"error {url}")
     return None
+
+def count_token( text, model:str='gpt-3.5' ) ->int:
+    enc = tiktoken.encoding_for_model( model )
+    tokens = enc.encode(text)
+    return len(tokens)
+
+def text_to_chunks( text, max_length=2000, overlap=100 ):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = min(start + max_length, len(text))
+        chunks.append(text[start:end])
+        if end==len(text):
+            break
+        start = end - overlap
+    return chunks
+
+def summarize( text:str, *, length:int=None, debug=False ) ->str:
+
+    openai_llm_model = 'gpt-3.5-turbo'
+    openai_timeout:Timeout = Timeout(180.0, connect=2.0, read=5.0)
+    openai_max_retries=3
+
+    # テキストが日本語かどうかを確認
+    is_japanese = all(ord(char) < 128 for char in text) == False
+    # プロンプトの設定
+    if is_japanese:
+        if isinstance(length,int):
+            prompt = f"以下のテキストを {length}トークン程度で 要約してください:\n\n{text}\n\n要約:"
+        else:
+            prompt = f"以下のテキストを要約してください:\n\n{text}\n\n要約:"
+        
+    else:
+        if isinstance(length,int):
+            prompt = f"Summarize the following text:\n\n{text}\n\nSummary:"
+        else:
+            prompt = f"Summarize the following text about {length} tokens:\n\n{text}\n\nSummary:"
+
+    request_messages = [
+        { 'role':'user', 'content': prompt }
+    ]
+    for run in range(openai_max_retries):
+        try:
+            client:OpenAI = OpenAI(timeout=openai_timeout,max_retries=1)
+            response = client.chat.completions.create(
+                    messages=request_messages,
+                    model=openai_llm_model, max_tokens=1000,
+                    temperature=0,
+            )
+            summary = response.choices[0].message.content.strip()
+            if len(summary)<len(text):
+                return summary
+            else:
+                return text
+        except Exception as ex:
+            print(f"ERROR OpenAI {ex.__class__.__name__} {ex}")
+            pass
+
+    return text
+
+def get_summary_from_text( text,length:int=1024, *, context_size:int=14000, overlap:int=500, debug=False):
+
+    if not text or not isinstance(text,str):
+        return text
+
+    if not os.environ.get('OPENAI_API_KEY'):
+        return text[:length]
+
+    summary_text =  text
+
+    n:int = 0 # 少なくとも一回は要約処理する
+    while n==0 or len(summary_text)>length:
+        n+=1
+        input_list:list[str] = text_to_chunks( summary_text, context_size, overlap )
+        if length<=context_size:
+            target_length:int = int(context_size/len(input_list)) if len(input_list)>1 else length
+        else:
+            target_length:int = int(context_size/len(input_list))
+        output_list:list[str] = []
+        update:bool = False
+        for text in input_list:
+            if len(text)>target_length:
+                summary = summarize( text, length=target_length, debug=debug )
+                output_list.append( summary )
+                update = True
+            else:
+                output_list.append( text )
+        input_size = sum( len(chunk) for chunk in input_list )
+        output_size = sum( len(chunk) for chunk in output_list )
+        if update and output_size>=input_size:
+            break
+        summary_text = '\n'.join(output_list)
+
+    return summary_text[:length]
+
+def get_summary_from_url(url, length:int=1024, *, debug=False):
+    text:str = get_text_from_url( url, debug=debug )
+    return get_summary_from_text( text, debug=debug)
