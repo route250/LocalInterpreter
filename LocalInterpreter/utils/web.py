@@ -26,7 +26,7 @@ mimetypes.add_type('image/gif', '.gif')
 mimetypes.add_type('application/zip', '.zip')
 mimetypes.add_type('application/octet-stream', '.bin')
 
-def google_search( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[dict]:
+def google_search_json( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[dict]:
 
     # API KEY
     api_key = os.environ.get(ENV_GCP_API_KEY)
@@ -68,6 +68,26 @@ def google_search( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[di
         result_json.append( {'title':title, 'link':link, 'snippet': snippet })
 
     return result_json
+
+def google_search( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[dict]:
+    resj:list[dict] = google_search_json( keyword, lang=lang, num=num, debug=debug)
+    aaa = "# Search keyword: {keyword}\n"
+    aaa += "# Search result:\n"
+    if isinstance(resj,(list,tuple)):
+        for i,item in enumerate(resj):
+            err:str = item.get('error')
+            title:str = item.get('title','')
+            link:str = item.get('link','')
+            snippet:str = item.get('snippet','')
+            if err:
+                aaa += "ERROR: {err}"
+            if link:
+                aaa += f"{i+1}. [{title}]({link})\n"
+                aaa += f"  {snippet}\n"
+    else:
+        aaa += "  no results.\n"
+    return aaa
+
 
 def remove_symbols(text):
     if isinstance(text,str):
