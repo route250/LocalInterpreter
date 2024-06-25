@@ -26,7 +26,7 @@ mimetypes.add_type('image/gif', '.gif')
 mimetypes.add_type('application/zip', '.zip')
 mimetypes.add_type('application/octet-stream', '.bin')
 
-def google_search_json( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[dict]:
+def google_search_json( keyword, *,lang:str='ja', num:int=5, debug=False ) ->list[dict]:
 
     # API KEY
     api_key = os.environ.get(ENV_GCP_API_KEY)
@@ -69,10 +69,10 @@ def google_search_json( keyword, *,lang:str='ja', num:int=10, debug=False ) ->li
 
     return result_json
 
-def google_search( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[dict]:
+def google_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->list[dict]:
     resj:list[dict] = google_search_json( keyword, lang=lang, num=num, debug=debug)
-    aaa = "# Search keyword: {keyword}\n"
-    aaa += "# Search result:\n"
+    aaa = f"# Search keyword: {keyword}\n\n"
+    aaa += "# Search result:\n\n"
     if isinstance(resj,(list,tuple)):
         for i,item in enumerate(resj):
             err:str = item.get('error')
@@ -80,10 +80,10 @@ def google_search( keyword, *,lang:str='ja', num:int=10, debug=False ) ->list[di
             link:str = item.get('link','')
             snippet:str = item.get('snippet','')
             if err:
-                aaa += "ERROR: {err}"
+                aaa += f"ERROR: {err}\n\n"
             if link:
                 aaa += f"{i+1}. [{title}]({link})\n"
-                aaa += f"  {snippet}\n"
+                aaa += f"  {snippet}\n\n"
     else:
         aaa += "  no results.\n"
     return aaa
