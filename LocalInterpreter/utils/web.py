@@ -1,5 +1,6 @@
 
 import sys,os
+import math
 import re
 import json
 from urllib import request
@@ -234,11 +235,44 @@ def count_token( text, model:str='gpt-3.5' ) ->int:
     tokens = enc.encode(text)
     return len(tokens)
 
-def text_to_chunks( text, max_length=2000, overlap=100 ):
+def text_to_chunks( text:str, chunk_size:int=2000, overlap:int=100 ):
+    text_size:int = len(text)
+    if text_size<chunk_size:
+        return text_size
+    
+    # チャンク数を計算
+    # 最初のチャンクで S 要素を消費し、それ以降は S - O 要素ごとに新たなチャンクが必要
+    num_chunks:int = 1 + math.ceil((text_size - chunk_size) / (chunk_size - overlap))
+    # 最後のチャンクのサイズを計算
+    last_start = (num_chunks - 1) * (chunk_size - overlap)
+    last_chunk_size = text_size - last_start
+    remainder = ( chunk_size - last_chunk_size ) // 2
+    if remainder > num_chunks-1:
+        off = math.ceil(remainder/(num_chunks-1))
+    else:
+        remainder = 0
+        off = 0
+
+    # print( f" chunks:{num_chunks} last_start:{last_start} size:{last_chunk_size}")
     chunks = []
     start = 0
     while start < len(text):
-        end = min(start + max_length, len(text))
+        step = chunk_size
+        if remainder>0:
+            step -= min( remainder, off )
+            remainder -= min( remainder, off )
+        end = min(start + step, len(text))
+        chunks.append(text[start:end])
+        if end==len(text):
+            break
+        start = end - overlap
+    return chunks
+
+def simple_text_to_chunks( text, chunk_size=2000, overlap=100 ):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
         chunks.append(text[start:end])
         if end==len(text):
             break
