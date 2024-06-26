@@ -100,7 +100,7 @@ class WebTrendService(QuartServiceBase):
 
     async def service(self,path):
         try:
-            result:list[str] = trends.today_searches()
-            return ' '.join(result)
+            result:str = trends.today_searches_result()
+            return result
         except Exception as e:
             return jsonify({'error': str(e)}), 500
