@@ -6,8 +6,9 @@ import json
 from urllib import request
 import mimetypes
 
+from urllib.parse import urlparse, parse_qs, unquote
 from bs4 import BeautifulSoup, Tag, Comment
-from googleapiclient.discovery import build
+from googleapiclient.discovery import build, Resource, HttpError
 from openai import OpenAI, OpenAIError
 from httpx import Timeout
 import tiktoken
@@ -26,7 +27,19 @@ mimetypes.add_type('image/gif', '.gif')
 mimetypes.add_type('application/zip', '.zip')
 mimetypes.add_type('application/octet-stream', '.bin')
 
-def google_search_json( keyword, *,lang:str='ja', num:int=5, debug=False ) ->list[dict]:
+def decode_and_parse_url(url):
+    # Parse the URL
+    parsed_url = urlparse(url)
+    # Decode the query part
+    decoded_query = unquote(parsed_url.query)
+    # Parse the decoded query part into a dictionary
+    query_params = parse_qs(decoded_query)
+    # Convert query parameters to a simple dictionary (not lists of values)
+    query_params_dict = {k: v[0] for k, v in query_params.items()}
+
+    return query_params_dict
+
+def google_search_json( keyword, *, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
 
     # API KEY
     api_key = os.environ.get(ENV_GCP_API_KEY)
@@ -36,7 +49,7 @@ def google_search_json( keyword, *,lang:str='ja', num:int=5, debug=False ) ->lis
 
     # 結果件数指定
     if isinstance(num,(int,float)):
-        num = min( max(1,int(num)), 20 )
+        num = min( max(1,int(num)), 10 )
     else:
         num = 10
     # 言語指定
@@ -49,6 +62,8 @@ def google_search_json( keyword, *,lang:str='ja', num:int=5, debug=False ) ->lis
         # Google Customサーチ結果を取得
         api = build('customsearch', 'v1', developerKey = api_key)
         result_raw = api.cse().list(q = keyword, cx=cse_id, lr = lr, num = num, start = 1).execute()
+    except HttpError as e:
+        return [ { 'error': f'{e.reason}'} ]
     except Exception as e:
         return [ { 'error': f'{e}'} ]
 
@@ -69,24 +84,24 @@ def google_search_json( keyword, *,lang:str='ja', num:int=5, debug=False ) ->lis
 
     return result_json
 
-def google_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->list[dict]:
-    resj:list[dict] = google_search_json( keyword, lang=lang, num=num, debug=debug)
-    aaa = f"# Search keyword: {keyword}\n\n"
-    aaa += "# Search result:\n\n"
-    if isinstance(resj,(list,tuple)):
-        for i,item in enumerate(resj):
+def google_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->str:
+    result_json:list[dict] = google_search_json( keyword, lang=lang, num=num, debug=debug)
+    result_text = f"# Search keyword: {keyword}\n\n"
+    result_text += "# Search result:\n\n"
+    if isinstance(result_json,(list,tuple)):
+        for i,item in enumerate(result_json):
             err:str = item.get('error')
             title:str = item.get('title','')
             link:str = item.get('link','')
             snippet:str = item.get('snippet','')
             if err:
-                aaa += f"ERROR: {err}\n\n"
+                result_text += f"ERROR: {err}\n\n"
             if link:
-                aaa += f"{i+1}. [{title}]({link})\n"
-                aaa += f"  {snippet}\n\n"
+                result_text += f"{i+1}. [{title}]({link})\n"
+                result_text += f"  {snippet}\n\n"
     else:
-        aaa += "  no results.\n"
-    return aaa
+        result_text += "  no results.\n"
+    return result_text
 
 
 def remove_symbols(text):

@@ -36,6 +36,12 @@ def test_get_text_from_url():
     print( "-----------------------------")
     print(summary)
 
+def test_decode_and_parse_url():
+    # Example usage
+    url = "/trends/explore?q=/m/012f86&date=2023-05-01+2023-06-01&geo=JP"
+    result = web.decode_and_parse_url(url)
+    print(result)
+
 def main():
     from dotenv import load_dotenv, find_dotenv
     load_dotenv( find_dotenv('.env_google') )

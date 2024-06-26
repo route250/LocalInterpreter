@@ -1,21 +1,9 @@
-
-from urllib.parse import urlparse, parse_qs, unquote
+from datetime import datetime,timedelta
 import pandas as pd
 from pytrends.request import TrendReq
+from LocalInterpreter.utils import web
 
-def decode_and_parse_url(url):
-    # Parse the URL
-    parsed_url = urlparse(url)
-    # Decode the query part
-    decoded_query = unquote(parsed_url.query)
-    # Parse the decoded query part into a dictionary
-    query_params = parse_qs(decoded_query)
-    # Convert query parameters to a simple dictionary (not lists of values)
-    query_params_dict = {k: v[0] for k, v in query_params.items()}
-
-    return query_params_dict
-
-def uniq_words( words ):
+def uniq_words( words:list[str] ) ->list[str]:
     # 部分文字列を排除
     result = []
     for s in words:
@@ -23,17 +11,12 @@ def uniq_words( words ):
             result.append(s)
     return result
 
-# Example usage
-url = "/trends/explore?q=/m/012f86&date=2023-05-01+2023-06-01&geo=JP"
-result = decode_and_parse_url(url)
-print(result)
-
-def today_searches():
+def today_searches() ->list[str]:
     pytrends:TrendReq = TrendReq(hl='ja-JP', tz=-540 )
     w = pytrends.today_searches(pn='JP')
     result=[]
     for ww in w:
-        params = decode_and_parse_url(ww)
+        params = web.decode_and_parse_url(ww)
         q=params.get('q')
         if q:
             result.append(q)
@@ -45,7 +28,7 @@ def related_queries( *args ):
 def related_topics( *args ):
     return related_keyword_topics( *args, mode=True)
 
-def related_keyword_topics( *args, mode:bool=False ):
+def related_keyword_topics( *args, mode:bool=False ) ->list[str]:
     # キーワードに関連するキーワードを取得する
     kw:list[str] = []
     if isinstance(args,(list,tuple)):
@@ -83,7 +66,7 @@ def related_keyword_topics( *args, mode:bool=False ):
     # 部分文字列を排除
     return uniq_words( sorted_keys )
 
-def realtime_trending():
+def realtime_trending() ->list[str]:
     # category
     # all:全てのカテゴリ
     #  e: エンタテイメント
@@ -102,13 +85,13 @@ def realtime_trending():
             result.append(name)
     return uniq_words(result)
 
-def trending_searches():
+def trending_searches() ->list[str]:
     pytrends:TrendReq = TrendReq(hl='ja-JP', tz=-540 )
     w = pytrends.trending_searches( pn='japan' )
     result = [w for w in w[0]]
     return uniq_words( result )
 
-def suggestions( keyword ):
+def suggestions( keyword ) ->list[str]:
     pytrends:TrendReq = TrendReq(hl='ja-JP', tz=-540 )
     #w = pytrends.top_charts( date=2024, hl = 'ja_JP', tz=-540, geo='JP' )
     res:list[dict] = pytrends.suggestions( keyword )
@@ -125,3 +108,64 @@ def suggestions( keyword ):
 # これらがさらに、人気](top) と 注目(rising) に分類されます。
 # 		人気　ー　検索ボリュームが多いもの
 # 		注目 ー は検索ボリュームの上昇率が高いもの
+
+
+def today_searches_result( *, lang='ja', num=10, debug=False):
+    word_lsit:list[str] = today_searches()
+    search_keywords = " OR ".join([ f"\"{w}\"" for w in word_lsit])
+    yesterday = datetime.now() - timedelta(days=1)
+    yesterday_str:str = yesterday.strftime("%Y-%m-%d")
+    query = f"( {search_keywords} ) after:{yesterday_str}"
+    result_all_list:list[dict] = web.google_search_json( query, lang=lang, num=10, debug=debug)
+    # {'title':title, 'link':link, 'snippet': snippet }
+
+    counter = {}
+    for hit_word in word_lsit:
+        counter[hit_word] = 0
+
+    result_json = []
+    uniq:dict = {}
+    nn:int = 3
+    skip_get = 1
+    for mode in range(skip_get,2):
+        for item in result_all_list:
+            title:str = item.get('title')
+            link:str = item.get('link')
+            if link in uniq:
+                continue
+            snippet:str = item.get('snippet')
+            if mode==0:
+                content:str = web.get_text_from_url(link)
+            else:
+                content = snippet
+            hit_word:str = None
+            for k,v in counter.items():
+                if k in content:
+                    if v>=nn:
+                        hit_word = None
+                        break
+                    elif hit_word is None:
+                        hit_word = k
+            if hit_word:
+                counter[hit_word] += 1
+                if mode==0:
+                    item['content'] = content
+                result_json.append(item)
+                uniq[link] = 0
+
+    result_text = f"# Today's search keywords: {' '.join(word_lsit)}\n\n"
+    result_text += "# Search result:\n\n"
+    if isinstance(result_json,(list,tuple)):
+        for i,item in enumerate(result_json):
+            err:str = item.get('error')
+            title:str = item.get('title','')
+            link:str = item.get('link','')
+            snippet:str = item.get('snippet','')
+            if err:
+                result_text += f"ERROR: {err}\n\n"
+            if link:
+                result_text += f"{i+1}. [{title}]({link})\n"
+                result_text += f"  {snippet}\n\n"
+    else:
+        result_text += "  no results.\n"
+    return result_text
