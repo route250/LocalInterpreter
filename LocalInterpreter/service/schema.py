@@ -112,6 +112,25 @@ class BaseService:
         for code, resp in sorted(self.responses.items()):
             yield from resp.to_yaml( lv+1 )
 
+    def to_func(self) ->dict:
+        props = {}
+        required = []
+        for param in self.params:
+            props[param.name] = { "type":param.type, "description": param.description }
+            required.append(param.name)
+        funcs = {
+            "type": "function",
+            "function": {
+                "name": self.summary,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": props,
+                    "required": required,
+                }
+            }
+        }
+        return funcs
 
 class PythonService(BaseService):
     def __init__(self):
@@ -176,6 +195,13 @@ class ServiceSchema:
             for method,service in method_dict.items():
                 yield f"    {method}:"
                 yield from service.to_yaml( 3 )
+
+    def to_tools(self) ->list[dict]:
+        tools = []
+        for path,method_dict in self.path_dict.items():
+            for method,service in method_dict.items():
+                tools.append( service.to_func() )
+        return tools
 
 def main():
     # テスト用の辞書データ
