@@ -97,7 +97,6 @@ class OpenAI_stream_iterator:
         self.tool_id:str = ""
         self.tool_name:str = ""
         self.tool_args:str = ""
-        self.mesg:dict = None
         self.created = None
         self.id = None
         self.model = None
@@ -133,8 +132,8 @@ class OpenAI_stream_iterator:
                     delta = choice.delta
                     if delta.content:
                         delta_content:str = delta.content
-                        print(delta_content, end="", flush=True) # the extra stuff at the end makes it so it updates as fast as possible, and doesn't create new lines for each chunk it gets
-                        if self.mesg is None:
+                        # print(delta_content, end="", flush=True) # the extra stuff at the end makes it so it updates as fast as possible, and doesn't create new lines for each chunk it gets
+                        if self.content is None:
                             self.content = ""
                             self.buffer = ""
                         self.content += delta_content
