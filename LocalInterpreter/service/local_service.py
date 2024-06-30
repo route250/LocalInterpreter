@@ -1,6 +1,7 @@
 import sys,os
 import json
 import traceback
+import asyncio
 from quart import Quart, request, Response, jsonify
 sys.path.append(os.getcwd())
 from LocalInterpreter.service.schema import ServiceSchema, BaseService, ServiceParam, ServiceResponse
@@ -8,7 +9,7 @@ from LocalInterpreter.service.schema import ServiceSchema, BaseService, ServiceP
 class QuartServiceBase(BaseService):
     def __init__(self,method):
         BaseService.__init__(self,method)
-        self.summary = ""
+        self.name = ""
         self.description = ""
 
     async def before_serving(self):
@@ -31,6 +32,17 @@ class QuartServiceBase(BaseService):
 
     async def service(self,subpath):
         print( f"[QServ] path:{subpath} baseurl:{request.base_url}")
+        data_json = {}
+        if self.method == "post":
+            data_json = await self.request_get_json()
+        return await self.acall( data_json )
+
+    async def acall(self,args:dict):
+        return self.call(args)
+
+    def call(self,args:dict):
+        # asyncio.run(self.acall(args))
+        pass
 
 class QuartServerBase(Quart,ServiceSchema):
 

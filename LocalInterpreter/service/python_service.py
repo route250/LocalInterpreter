@@ -1,4 +1,4 @@
-
+import asyncio
 from quart import request, Response, jsonify
 from LocalInterpreter.service.local_service import QuartServiceBase, ServiceParam, ServiceResponse
 from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
@@ -43,11 +43,11 @@ class PythonService(QuartServiceBase):
     async def before_serving(self):
         await self.repo.setup()
 
-    async def service(self,path):
-        data_json = await self.request_get_json()
-        sessionId:str = data_json.get('sessionId')
-        cmd_code = data_json.get('code')
-        download_url = data_json.get('download_url')
+    async def call(self,args):
+        args = await self.request_get_json()
+        sessionId:str = args.get('sessionId')
+        cmd_code = args.get('code')
+        download_url = args.get('download_url')
 
         try:
             result_out:list[str] = []
@@ -67,3 +67,6 @@ class PythonService(QuartServiceBase):
 
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+    def call(self,args):
+        return asyncio.run(self.acall(args))

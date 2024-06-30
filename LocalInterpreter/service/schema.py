@@ -112,6 +112,9 @@ class BaseService:
         for code, resp in sorted(self.responses.items()):
             yield from resp.to_yaml( lv+1 )
 
+    def get_func_name(self)->str:
+        return self.summary.replace(" ","_").replace("'","_")
+
     def to_func(self) ->dict:
         props = {}
         required = []
@@ -121,7 +124,7 @@ class BaseService:
         funcs = {
             "type": "function",
             "function": {
-                "name": self.summary,
+                "name": self.get_func_name(),
                 "description": self.description,
                 "parameters": {
                     "type": "object",

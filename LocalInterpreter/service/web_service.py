@@ -1,4 +1,5 @@
 
+import traceback
 from quart import request, Response, jsonify
 from LocalInterpreter.service.local_service import QuartServiceBase, ServiceParam, ServiceResponse
 import LocalInterpreter.utils.web as web
@@ -28,16 +29,15 @@ class WebSearchService(QuartServiceBase):
         from dotenv import load_dotenv, find_dotenv
         load_dotenv( find_dotenv('.env_google') )
 
-    async def service(self,path):
-        data_json = await self.request_get_json()
-        keyword = data_json.get(INP_KEYWORD)
+    def call(self,args):
+        keyword = args.get(INP_KEYWORD)
         if not keyword:
             return jsonify({'error': f'No {INP_KEYWORD} provided'}), 400
-
         try:
-            result:list[dict] = web.google_search( keyword )
-            return jsonify(result)
+            result:str = web.google_search( keyword )
+            return result
         except Exception as e:
+            traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
 INP_URL = 'url'
@@ -60,12 +60,8 @@ class WebGetService(QuartServiceBase):
         ))
         self.add_response( p200 )
 
-    async def before_serving(self):
-        pass
-
-    async def service(self,path):
-        data_json = await self.request_get_json()
-        url = data_json.get(INP_URL)
+    def call( self, args ):
+        url = args.get(INP_URL)
         if not url:
             return jsonify({'error': f'No {INP_URL} provided'}), 400
         limit = 1000
@@ -80,6 +76,7 @@ class WebGetService(QuartServiceBase):
                 result = f"Text summarized from {url}.\n\n{summary_text}"
             return result
         except Exception as e:
+            traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
 class WebTrendService(QuartServiceBase):
@@ -95,12 +92,10 @@ class WebTrendService(QuartServiceBase):
         ))
         self.add_response( p200 )
 
-    async def before_serving(self):
-        pass
-
-    async def service(self,path):
+    def call(self,args):
         try:
             result:str = trends.today_searches_result()
             return result
         except Exception as e:
+            traceback.print_exc()
             return jsonify({'error': str(e)}), 500

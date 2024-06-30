@@ -9,9 +9,8 @@ import mimetypes
 from urllib.parse import urlparse, parse_qs, unquote
 from bs4 import BeautifulSoup, Tag, Comment
 from googleapiclient.discovery import build, Resource, HttpError
-from openai import OpenAI, OpenAIError
-from httpx import Timeout
-import tiktoken
+
+from LocalInterpreter.utils.openai_util import count_token, summarize
 
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
@@ -265,15 +264,10 @@ def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
         print(f"error {url}")
     return None
 
-def count_token( text, model:str='gpt-3.5' ) ->int:
-    enc = tiktoken.encoding_for_model( model )
-    tokens = enc.encode(text)
-    return len(tokens)
-
-def text_to_chunks( text:str, chunk_size:int=2000, overlap:int=100 ):
+def text_to_chunks( text:str, chunk_size:int=2000, overlap:int=100 ) ->list[str]:
     text_size:int = len(text)
     if text_size<chunk_size:
-        return text_size
+        return [text]
     
     # チャンク数を計算
     # 最初のチャンクで S 要素を消費し、それ以降は S - O 要素ごとに新たなチャンクが必要
@@ -313,49 +307,6 @@ def simple_text_to_chunks( text, chunk_size=2000, overlap=100 ):
             break
         start = end - overlap
     return chunks
-
-def summarize( text:str, *, length:int=None, debug=False ) ->str:
-
-    openai_llm_model = 'gpt-3.5-turbo'
-    openai_timeout:Timeout = Timeout(180.0, connect=2.0, read=5.0)
-    openai_max_retries=3
-
-    # テキストが日本語かどうかを確認
-    is_japanese = all(ord(char) < 128 for char in text) == False
-    # プロンプトの設定
-    if is_japanese:
-        if isinstance(length,int):
-            prompt = f"以下のテキストを {length}トークン程度で 要約してください:\n\n{text}\n\n要約:"
-        else:
-            prompt = f"以下のテキストを要約してください:\n\n{text}\n\n要約:"
-        
-    else:
-        if isinstance(length,int):
-            prompt = f"Summarize the following text:\n\n{text}\n\nSummary:"
-        else:
-            prompt = f"Summarize the following text about {length} tokens:\n\n{text}\n\nSummary:"
-
-    request_messages = [
-        { 'role':'user', 'content': prompt }
-    ]
-    for run in range(openai_max_retries):
-        try:
-            client:OpenAI = OpenAI(timeout=openai_timeout,max_retries=1)
-            response = client.chat.completions.create(
-                    messages=request_messages,
-                    model=openai_llm_model, max_tokens=1000,
-                    temperature=0,
-            )
-            summary = response.choices[0].message.content.strip()
-            if len(summary)<len(text):
-                return summary
-            else:
-                return text
-        except Exception as ex:
-            print(f"ERROR OpenAI {ex.__class__.__name__} {ex}")
-            pass
-
-    return text
 
 def get_summary_from_text( text,length:int=1024, *, context_size:int=14000, overlap:int=500, debug=False):
 
