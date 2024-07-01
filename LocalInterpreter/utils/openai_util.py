@@ -10,6 +10,8 @@ from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall,ChatComp
 from openai import Stream
 import tiktoken
 
+from .JsonStreamParser import JsonStreamParser
+
 def setup_openai_api():
     """
     OpenAI APIをセットアップする関数です。
@@ -97,6 +99,8 @@ class OpenAI_stream_iterator:
         self.tool_id:str = ""
         self.tool_name:str = ""
         self.tool_args:str = ""
+        self.json_mode:bool = True
+        self.json_parser:JsonStreamParser = JsonStreamParser()
         self.created = None
         self.id = None
         self.model = None
@@ -138,6 +142,14 @@ class OpenAI_stream_iterator:
                             self.buffer = ""
                         self.content += delta_content
                         self.buffer += delta_content
+                        try:
+                            if self.json_mode:
+                                self.json_parser.put(delta_content)
+                                k,v = self.json_parser.get_parts()
+                                self.json_parser.get_done('aaaa')
+                                
+                        except:
+                            self.json_mode = False
                         # 最初に一致した部分を検索
                         match = re.search(self.parent.pattern, self.buffer)
                         if match:
