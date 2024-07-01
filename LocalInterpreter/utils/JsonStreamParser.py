@@ -54,6 +54,16 @@ class JsonStreamParser:
     def get(self):
         return self._stack[0][1] if self._stack else self._obj
 
+    def get_value(self,path):
+        data:dict = self.get()
+        if not isinstance(data,dict):
+            return None
+        for p in path.split('.'):
+            data = data.get(p)
+            if data is None:
+                return None
+        return data
+
     def get_path(self,dbg=""):
         if self._key:
             paths:list = [aaa[2] for aaa in self._stack[1:]]
@@ -286,7 +296,7 @@ class JsonStreamParser:
                 return 0
 
 def test():
-    testdata="""{
+    testdata=""" {"start":"0",
   "test": "sample",
   "key111": {
     "key222": "value222"
@@ -295,7 +305,7 @@ def test():
     "key444": ["a","b",5,null],
     "key555": 5,
     "key666": null
-  }
+  },"key777":{"key888":"value888"}
 }"""
     parser:JsonStreamParser = JsonStreamParser()
     for cc in testdata:
@@ -306,6 +316,9 @@ def test():
             print( f" /* {k}: {v} */ ", end="")
     ret = parser.get()
     print(ret)
+    for k in ("key111.key222",):
+        v = parser.get_value(k)
+        print(f"get_value {k}={v}")
 
 if __name__ == "__main__":
     test()

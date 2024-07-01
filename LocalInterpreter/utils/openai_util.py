@@ -1,6 +1,6 @@
 
 import sys,os
-import re
+import re,traceback
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError, APITimeoutError
@@ -83,6 +83,13 @@ class OpenAI_stream_decorder:
         self.delimiters = ["。", "!", "！", "?", "？", "\n"]
         # 正規表現のパターンを作成
         self.pattern = '|'.join(map(re.escape, self.delimiters))
+        self.stream_paths:dict[str,str] = {}
+        self.json_mode:bool = False
+
+    def add_stream_path(self, path:str ):
+        if path:
+            self.stream_paths[path] = ""
+            self.json_mode = True
 
     def get_iter(self, stream:Stream):
         return OpenAI_stream_iterator(parent=self,stream=stream)
@@ -99,21 +106,43 @@ class OpenAI_stream_iterator:
         self.tool_id:str = ""
         self.tool_name:str = ""
         self.tool_args:str = ""
-        self.json_mode:bool = True
-        self.json_parser:JsonStreamParser = JsonStreamParser()
+        self.json_buffers:dict[str,int] = {k:0 for k in parent.stream_paths.keys()}
+        self.json_parser:JsonStreamParser = JsonStreamParser() if parent.json_mode else None
         self.created = None
         self.id = None
         self.model = None
         self.service_tier = None
         self.system_fingerprint = None
         self.usage = None
+
     def __iter__(self):
         return self
+
+    def _split(self,text):
+        # 最初に一致した部分を検索
+        match = re.search(self.parent.pattern, text)
+        if match:
+            p = match.start()
+            return text[:p+1], text[p+1:] 
+        return "",text
+    def _split2(self,flltext:str,ii:int):
+        if not isinstance(flltext,str):
+            return 0, ""
+        text:str = flltext[ii:]
+        # 最初に一致した部分を検索
+        match = re.search(self.parent.pattern, text)
+        if match:
+            p = match.start()
+            return ii+p, text[:p]
+        else:
+            return ii, ""
+
     def __next__(self):
         if not self.eof:
             try:
                 while True:
                     chunk:ChatCompletionChunk = self.base.__next__()
+                    #
                     if chunk.created:
                         self.created = chunk.created
                     if chunk.id:
@@ -128,37 +157,47 @@ class OpenAI_stream_iterator:
                         self.usage = chunk.usage
                     if len(chunk.choices)==0:
                         continue
+                    #
                     choice = chunk.choices[0]
                     if choice.finish_reason:
                         self.finish_reason = choice.finish_reason
                     if choice.delta is None:
                         continue
+                    #
                     delta = choice.delta
                     if delta.content:
                         delta_content:str = delta.content
                         # print(delta_content, end="", flush=True) # the extra stuff at the end makes it so it updates as fast as possible, and doesn't create new lines for each chunk it gets
+
                         if self.content is None:
                             self.content = ""
                             self.buffer = ""
                         self.content += delta_content
                         self.buffer += delta_content
-                        try:
-                            if self.json_mode:
-                                self.json_parser.put(delta_content)
-                                k,v = self.json_parser.get_parts()
-                                self.json_parser.get_done('aaaa')
-                                
-                        except:
-                            self.json_mode = False
-                        # 最初に一致した部分を検索
-                        match = re.search(self.parent.pattern, self.buffer)
-                        if match:
-                            p = match.start()
-                            seg = self.buffer[:p+1]
-                            self.buffer = self.buffer[p+1:]
-                            return ("", OpenAI_stream_decorder.key_content,seg)
-                        continue
 
+                        try:
+                            if self.json_parser:
+                                self.json_parser.put(delta_content)
+                                for path,pos in self.json_buffers.items():
+                                    new_value = self.json_parser.get_value(path)
+                                    new_pos, delta = self._split2( new_value, pos )
+                                    if new_pos>pos:
+                                        self.json_buffers[path] = new_pos
+                                        return ("", path, delta )
+                                continue
+                        except Exception as ex:
+                            # traceback.print_exc()
+                            print(f"ERROR: buffer: {self.buffer}")
+                            print(f"ERROR: {ex}")
+                            self.json_parser = None
+
+                        # 最初に一致した部分を検索
+                        a,b = self._split(self.buffer)
+                        if a:
+                            self.buffer = b
+                            return ("", OpenAI_stream_decorder.key_content,a)
+                        continue
+                    #
                     if delta.tool_calls:
                         ret = None
                         for tc in delta.tool_calls:
@@ -188,10 +227,10 @@ class OpenAI_stream_iterator:
             self.tools_call.append(ret)
             self.tool_id = ""
             return ret
-        if self.buffer:
+        if self.json_parser is None and self.buffer:
             seg = self.buffer
             self.buffer = ""
-            return seg
+            return ("", OpenAI_stream_decorder.key_content,seg)
         raise StopIteration()
 
     def to_json(self):
