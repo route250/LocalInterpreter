@@ -19,6 +19,7 @@ class JsonStreamParseError(ValueError):
 class JsonStreamParser:
     """ストリーミングでパースできるJSONパーサ簡易版"""
     def __init__(self):
+        self._full_text:str = ""
         self._pos=0
         self._stack = []
         self._phase=PRE_VALUE
@@ -48,7 +49,8 @@ class JsonStreamParser:
         if self._stack:
             self._phase, self._obj, self._key = self._stack.pop()
             self._val = None
-            return True
+            if self._stack:
+                return True
         return False
 
     def get(self):
@@ -91,13 +93,14 @@ class JsonStreamParser:
         else:
             return None,None
 
-    def put(self, text ):
-        if text:
+    def put(self, text:str ):
+        if isinstance(text,str):
+            self._full_text += text
             for cc in text:
                 self._put_char(cc)
         return self.get()
     
-    def _put_char( self, cc ):
+    def _put_char( self, cc:str ):
         try:
             if self._esc==0 and cc=="\\" and ( self._phase==IN_QSTR or self._phase==IN_KEY):
                 self._esc=1
@@ -245,8 +248,9 @@ class JsonStreamParser:
 
             elif self._phase==END:
                 # end
-                if cc>" ":
-                    raise JsonStreamParseError(f"invalid char in after value \"{cc}\"",self._pos)
+                #if cc>" ":
+                #    raise JsonStreamParseError(f"invalid char in after value \"{cc}\"",self._pos)
+                pass # ignore after json data
             else:
                 raise JsonStreamParseError(f"invalid phase {self._phase} \"{cc}\"",self._pos)
         finally:
@@ -320,5 +324,23 @@ def test():
         v = parser.get_value(k)
         print(f"get_value {k}={v}")
 
+def test_invalid_1():
+    input="{\n  \"text_to_speech\": \"やぁ、なにブラザー？\"\n}\n{\n  \"text_to_speech\": \"お疲れ様、なにか用かい？\"\n}"
+    print(f"INPUT:{input}")
+    try:
+        orig = json.loads( input )
+        print(f"JSON:{orig}")
+    except Exception as ex:
+        print(f"ERROR:{ex}")
+    parser:JsonStreamParser = JsonStreamParser()
+    for cc in input:
+        print(f"{cc}", end="")
+        parser.put(cc)
+        k,v = parser.get_parts()
+        if k is not None:
+            print( f" /* {k}: {v} */ ", end="")
+    ret = parser.get()
+    print(ret)
+
 if __name__ == "__main__":
-    test()
+    test_invalid_1()

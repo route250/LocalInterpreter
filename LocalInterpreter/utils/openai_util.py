@@ -1,6 +1,7 @@
 
 import sys,os
 import re,traceback
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError, APITimeoutError
@@ -22,6 +23,23 @@ def setup_openai_api():
     
     api_key = os.getenv("OPENAI_API_KEY")
     print(f"OPENAI_API_KEY={api_key[:5]}***{api_key[-3:]}")
+
+def trim_json( data ):
+    if isinstance( data, (list,tuple) ):
+        # 新しいリストまたはタプルを作成し、再帰的に処理した要素を追加
+        new_data = [trim_json(item) for item in data if item]
+        return type(data)( [ item for item in new_data if item ] )
+    elif isinstance( data, dict ):
+        # 新しい辞書を作成し、再帰的に処理したキーと値を追加
+        new_data = {}
+        for key, value in data.items():
+            trimmed_value = trim_json(value)
+            if trimmed_value:
+                new_data[key] = trimmed_value
+        return new_data
+    else:
+        # データがリスト、タプル、辞書でない場合はそのまま返す
+        return data
 
 def count_token( text, model:str='gpt-3.5' ) ->int:
     enc = tiktoken.encoding_for_model( model )
@@ -114,6 +132,7 @@ class OpenAI_stream_iterator:
         self.service_tier = None
         self.system_fingerprint = None
         self.usage = None
+        self.dbg_content:str = ""
 
     def __iter__(self):
         return self
@@ -133,7 +152,7 @@ class OpenAI_stream_iterator:
         match = re.search(self.parent.pattern, text)
         if match:
             p = match.start()
-            return ii+p, text[:p]
+            return ii+p+1, text[:p+1]
         else:
             return ii, ""
 
@@ -168,7 +187,7 @@ class OpenAI_stream_iterator:
                     if delta.content:
                         delta_content:str = delta.content
                         # print(delta_content, end="", flush=True) # the extra stuff at the end makes it so it updates as fast as possible, and doesn't create new lines for each chunk it gets
-
+                        self.dbg_content += delta_content
                         if self.content is None:
                             self.content = ""
                             self.buffer = ""
@@ -227,14 +246,26 @@ class OpenAI_stream_iterator:
             self.tools_call.append(ret)
             self.tool_id = ""
             return ret
-        if self.json_parser is None and self.buffer:
+        if self.json_parser:
+            for path,pos in self.json_buffers.items():
+                new_value = self.json_parser.get_value(path)
+                new_pos, delta = self._split2( new_value, pos )
+                if new_pos>pos:
+                    self.json_buffers[path] = new_pos
+                    return ("", path, delta )
+        elif self.buffer:
             seg = self.buffer
             self.buffer = ""
             return ("", OpenAI_stream_decorder.key_content,seg)
         raise StopIteration()
 
     def to_json(self):
-        j:dict = { "role": "assistant", "content": self.content }
+        if self.json_parser:
+            content_json = trim_json( self.json_parser.get() )
+            content:str = json.dumps( content_json, ensure_ascii=False )
+        else:
+            content:str = self.content
+        result_json:dict = { "role": "assistant", "content": content }
         if self.tools_call:
             a = []
             for tool_id, tool_name, tool_args in self.tools_call:
@@ -243,5 +274,5 @@ class OpenAI_stream_iterator:
                         "function": { "name": tool_name, "arguments": tool_args, },
                         "type": "function"
                     } )
-            j["tool_calls"] = a
-        return j
+            result_json["tool_calls"] = a
+        return result_json
