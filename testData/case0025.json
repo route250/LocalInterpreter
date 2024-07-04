@@ -1,0 +1,21 @@
+{
+  "input":     "{ \"p1\":{\"k1\":\"abc\"}, \"p2\":{\"k2\":\"def\"}, \"p3\":{\"k3\":\"ghi\"} }",
+  "output": [
+    [ "update", "p1.k1", "a" ],
+    [ "update", "p1.k1", "ab" ],
+    [ "update", "p1.k1", "abc" ],
+    [ "end", "p1.k1", "abc" ],
+    [ "end", "p1", {"k1": "abc"} ],
+    [ "update", "p2.k2", "d" ],
+    [ "update", "p2.k2", "de" ],
+    [ "update", "p2.k2", "def" ],
+    [ "end", "p2.k2", "def" ],
+    [ "end", "p2", {"k2": "def"} ],
+    [ "update", "p3.k3", "g" ],
+    [ "update", "p3.k3", "gh" ],
+    [ "update", "p3.k3", "ghi" ],
+    [ "end", "p3.k3", "ghi" ],
+    [ "end", "p3", {"k3": "ghi"} ],
+    [ "end", "", {"p1": {"k1": "abc"}, "p2": {"k2": "def"}, "p3": {"k3": "ghi"}} ]
+  ]
+}

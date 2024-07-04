@@ -1,0 +1,14 @@
+{
+  "input":     "\"abc\\n\\\"123\"",
+  "output": [
+    ["update", "", "a" ],
+    ["update", "", "ab" ],
+    ["update", "", "abc" ],
+    ["update", "", "abc\n" ],
+    ["update", "", "abc\n\"" ],
+    ["update", "", "abc\n\"1" ],
+    ["update", "", "abc\n\"12" ],
+    ["update", "", "abc\n\"123" ],
+    ["end", "", "abc\n\"123" ]
+  ]
+}

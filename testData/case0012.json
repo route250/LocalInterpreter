@@ -1,0 +1,18 @@
+{
+  "input":     "[ \"abc\", \"def\", \"ghi\" ]",
+  "output": [
+    [ "update", "[0]", "a" ],
+    [ "update", "[0]", "ab" ],
+    [ "update", "[0]", "abc" ],
+    [ "end", "[0]", "abc" ],
+    [ "update", "[1]", "d" ],
+    [ "update", "[1]", "de" ],
+    [ "update", "[1]", "def" ],
+    [ "end", "[1]", "def" ],
+    [ "update", "[2]", "g" ],
+    [ "update", "[2]", "gh" ],
+    [ "update", "[2]", "ghi" ],
+    [ "end", "[2]", "ghi" ],
+    [ "end", "", ["abc", "def", "ghi"] ]
+  ]
+}

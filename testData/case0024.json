@@ -1,0 +1,18 @@
+{
+  "input":     "{ \"p1\":\"abc\", \"p2\":\"def\", \"p3\":\"ghi\" }",
+  "output": [
+    [ "update", "p1", "a" ],
+    [ "update", "p1", "ab" ],
+    [ "update", "p1", "abc" ],
+    [ "end", "p1", "abc" ],
+    [ "update", "p2", "d" ],
+    [ "update", "p2", "de" ],
+    [ "update", "p2", "def" ],
+    [ "end", "p2", "def" ],
+    [ "update", "p3", "g" ],
+    [ "update", "p3", "gh" ],
+    [ "update", "p3", "ghi" ],
+    [ "end", "p3", "ghi" ],
+    [ "end", "", {"p1": "abc", "p2": "def", "p3": "ghi"} ]
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "input":     "{\"key\": \"value\"}",
+  "output": [
+    [ "update", "key", "v" ],
+    [ "update", "key", "va" ],
+    [ "update", "key", "val" ],
+    [ "update", "key", "valu" ],
+    [ "update", "key", "value" ],
+    [ "end", "key", "value" ],
+    [ "end", "", {"key": "value"} ]
+  ]
+}
