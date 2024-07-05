@@ -37,9 +37,14 @@ def related_keyword_topics( *args, mode:bool=False ) ->list[str]:
                 kw.append(w)
     if len(kw)==0:
         return []
+
+    today = datetime.now()
+    yesterday = today - timedelta(days=1)
+    today_str:str = today.strftime("%Y-%m-%d")
+    yesterday_str:str = yesterday.strftime("%Y-%m-%d")
     day1='2024-06-01'
     day2='2024-06-20'
-    tf=f"{day1} {day2}"
+    tf=f"{yesterday_str} {today_str}"
     pytrends:TrendReq = TrendReq(hl='ja-JP', tz=-540 )
     pytrends.build_payload( kw_list=kw, timeframe=tf, geo='JP' )
     if mode:

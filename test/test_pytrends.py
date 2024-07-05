@@ -3,6 +3,12 @@ import os
 sys.path.append(os.getcwd())
 import LocalInterpreter.utils.trends as trends
 
+def test_search():
+    q='女神のカフェテラス'
+    ret:list = trends.related_topics(q)
+    #ret:list = trends.related_queries(q)
+    print(ret)
+
 def main():
     #ret = trends.trending_searches()
     # realtime_trending()
@@ -22,4 +28,5 @@ def main():
     print(ret)
 
 if __name__ == "__main__":
-    main()
+    test_search()
+    # main()
