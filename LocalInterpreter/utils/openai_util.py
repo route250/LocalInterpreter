@@ -109,21 +109,34 @@ class OpenAI_stream_decorder:
             self.stream_paths[path] = ""
             self.json_mode = True
 
-    def get_iter(self, stream:Stream):
-        return OpenAI_stream_iterator(parent=self,stream=stream)
+    def get_iter(self, stream:Stream=None,*,loadfile:str=None,savefile:str=None):
+        return OpenAI_stream_iterator(parent=self,stream=stream,loadfile=loadfile,savefile=savefile)
 
 class OpenAI_stream_iterator:
-    def __init__(self,parent:OpenAI_stream_decorder,stream:Stream):
+    def __init__(self,parent:OpenAI_stream_decorder,stream:Stream=None,*,loadfile:str=None,savefile:str=None):
         self.parent = parent
-        self.base = stream
+        self.savefile:str = None
+        self.savebuffer:list[dict] = None
+        if loadfile:
+            self.loadfile = loadfile
+            buffer = []
+            with open(loadfile,'r') as fs:
+                data:list[dict] = json.load(fs)
+                for obj in data:
+                    buffer.append( ChatCompletionChunk(**obj) )
+            self.stream = iter(buffer)
+        elif stream:
+            self.stream = stream
+            if savefile:
+                self.savefile = savefile
+                self.savebuffer = []
+        else:
+            raise ValueError("Either stream or loadfile must be provided")
+
         self.content:str = None
         self.buffer:str = None
         self.tools_call:list = []
         self.eof:bool = False
-        self.tool_idx:int = 0
-        self.tool_id:str = ""
-        self.tool_name:str = ""
-        self.tool_args:str = ""
         self.json_buffers:dict[str,int] = {k:0 for k in parent.stream_paths.keys()}
         self.json_parser:JsonStreamParser = JsonStreamParser() if parent.json_mode else None
         self.created = None
@@ -135,7 +148,7 @@ class OpenAI_stream_iterator:
         self.dbg_content:str = ""
 
     def __iter__(self):
-        return self
+        return self._parse()
 
     def _split(self,text):
         # 最初に一致した部分を検索
@@ -144,6 +157,7 @@ class OpenAI_stream_iterator:
             p = match.start()
             return text[:p+1], text[p+1:] 
         return "",text
+
     def _split2(self,flltext:str,ii:int):
         if not isinstance(flltext,str):
             return 0, ""
@@ -156,12 +170,29 @@ class OpenAI_stream_iterator:
         else:
             return ii, ""
 
-    def __next__(self):
-        if not self.eof:
-            try:
-                while True:
-                    chunk:ChatCompletionChunk = self.base.__next__()
-                    #
+    def _parse(self):
+        if self.eof:
+            return
+        try:
+            in_content:int = 0
+            content_buffer:str = ""
+            in_tools:int = 0
+            tool_idx = ""
+            tool_id = ""
+            tool_name = ""
+            tool_args = ""
+
+            while not self.eof:
+
+                delta_content:str = None
+                delta_tool_calls = None
+
+                # get next chunk
+                try:
+                    chunk:ChatCompletionChunk = next( self.stream )
+                    if isinstance(self.savebuffer,list):
+                        self.savebuffer.append( chunk.to_dict() )
+                    # get data from chunk
                     if chunk.created:
                         self.created = chunk.created
                     if chunk.id:
@@ -174,90 +205,91 @@ class OpenAI_stream_iterator:
                         chunk.system_fingerprint
                     if chunk.usage:
                         self.usage = chunk.usage
-                    if len(chunk.choices)==0:
-                        continue
-                    #
-                    choice = chunk.choices[0]
-                    if choice.finish_reason:
-                        self.finish_reason = choice.finish_reason
-                    if choice.delta is None:
-                        continue
-                    #
-                    delta = choice.delta
-                    if delta.content:
-                        delta_content:str = delta.content
-                        # print(delta_content, end="", flush=True) # the extra stuff at the end makes it so it updates as fast as possible, and doesn't create new lines for each chunk it gets
+                    if len(chunk.choices)>0 and chunk.choices[0] is not None:
+                        choice = chunk.choices[0]
+                        if choice.finish_reason:
+                            self.finish_reason = choice.finish_reason
+                        if choice.delta is not None:
+                            delta_content = choice.delta.content
+                            delta_tool_calls = choice.delta.tool_calls
+                except StopIteration:
+                    self.eof = True
+                    if self.savefile and self.savebuffer:
+                        with open(self.savefile,'w') as stream:
+                            json.dump( self.savebuffer, stream, ensure_ascii=False, indent=2 )
+                # process content
+                if in_content==1 or delta_content:
+                    if delta_content:
+                        in_content = 1
+                        content_buffer += delta_content
                         self.dbg_content += delta_content
                         if self.content is None:
-                            self.content = ""
-                            self.buffer = ""
-                        self.content += delta_content
-                        self.buffer += delta_content
+                            self.content = delta_content
+                        else:
+                            self.content += delta_content
+                    else:
+                        delta_content = ""
+                        in_content = 2
+                    
+                    # json mode
+                    if self.json_parser is not None:
+                        for id, path, new_value in self.json_parser.put( delta_content, end=in_content==2 ):
+                            if JsonStreamParser.ERR == id:
+                                self.json_parser = None
+                                print(f"ERROR: buffer: {path} {new_value}")
+                                break
+                            pos = self.json_buffers.get(path)
+                            if isinstance(pos,int):
+                                new_pos, delta = self._split2( new_value, pos )
+                                if new_pos>pos:
+                                    self.json_buffers[path] = new_pos
+                                    yield ("", path, delta )
 
-                        try:
-                            if self.json_parser:
-                                self.json_parser.put(delta_content)
-                                for path,pos in self.json_buffers.items():
-                                    new_value = self.json_parser.get_value(path)
-                                    new_pos, delta = self._split2( new_value, pos )
-                                    if new_pos>pos:
-                                        self.json_buffers[path] = new_pos
-                                        return ("", path, delta )
-                                continue
-                        except Exception as ex:
-                            # traceback.print_exc()
-                            print(f"ERROR: buffer: {self.buffer}")
-                            print(f"ERROR: {ex}")
-                            self.json_parser = None
-
-                        # 最初に一致した部分を検索
-                        a,b = self._split(self.buffer)
-                        if a:
-                            self.buffer = b
-                            return ("", OpenAI_stream_decorder.key_content,a)
-                        continue
-                    #
-                    if delta.tool_calls:
-                        ret = None
-                        for tc in delta.tool_calls:
-                            if self.tool_idx != tc.index:
-                                if self.tool_id:
-                                    ret = (self.tool_id,self.tool_name,self.tool_args)
+                    # plain text mode
+                    if self.json_parser is None:
+                        if in_content==1:
+                            before, after = self._split(content_buffer)
+                            content_buffer = after
+                        else:
+                            before = content_buffer
+                            content_buffer = ""
+                        if before:
+                            yield ("", OpenAI_stream_decorder.key_content,before)
+                #
+                if in_tools==1 or delta_tool_calls:
+                    if delta_tool_calls:
+                        in_tools=1
+                        for tc in delta_tool_calls:
+                            if tool_idx != tc.index:
+                                if tool_id:
+                                    # flush tool
+                                    ret = (tool_id,tool_name,tool_args)
                                     self.tools_call.append(ret)
-                                self.tool_idx = tc.index
-                                self.tool_id = ""
-                                self.tool_name = ""
-                                self.tool_args = ""
-                            f = tc.function
+                                    yield ret
+                                # init tool
+                                tool_idx = tc.index
+                                tool_id = tool_name = tool_args = ""
                             if tc.id:
-                                self.tool_id += tc.id
-                            if f.name:
-                                self.tool_name += f.name
-                            if f.arguments:
-                                self.tool_args += f.arguments
-                            # print(tc)
-                        if ret:
-                            return ret
-            except StopIteration:
-                self.eof=True
-        #----------
-        if self.tool_id:
-            ret = (self.tool_id,self.tool_name,self.tool_args)
-            self.tools_call.append(ret)
-            self.tool_id = ""
-            return ret
-        if self.json_parser:
-            for path,pos in self.json_buffers.items():
-                new_value = self.json_parser.get_value(path)
-                new_pos, delta = self._split2( new_value, pos )
-                if new_pos>pos:
-                    self.json_buffers[path] = new_pos
-                    return ("", path, delta )
-        elif self.buffer:
-            seg = self.buffer
-            self.buffer = ""
-            return ("", OpenAI_stream_decorder.key_content,seg)
-        raise StopIteration()
+                                tool_id += tc.id
+                            fnc = tc.function
+                            if fnc:
+                                if fnc.name:
+                                    tool_name += fnc.name
+                                if fnc.arguments:
+                                    tool_args += fnc.arguments
+                    else:
+                        in_tools=2
+                        if tool_id and tool_name:
+                            # flush tool
+                            ret = (tool_id,tool_name,tool_args)
+                            self.tools_call.append(ret)
+                            yield ret
+                        tool_id = tool_name = tool_args = ""
+        except Exception as ex:
+            self.eof=True
+            self.json_parser = None
+            traceback.print_exc()
+            raise ex
 
     def to_json(self):
         if self.json_parser:

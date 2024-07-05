@@ -115,10 +115,18 @@ def test_to_func_stream():
     thpool:ThreadPoolExecutor = None
     client:OpenAI = OpenAI()
     decorder:OpenAI_stream_decorder = OpenAI_stream_decorder()
+    save_cnt:int = 0
     tool_list = top.to_tools()
     # print( json.dumps( tool_list, ensure_ascii=False, indent=2))
     request_messages = []
-    request_messages.append( { 'role':'system', 'content':'tools実行のテスト。それぞれのツールを1回づつ実行して' } )
+    request_messages.append( {
+        'role':'system',
+        'content':"""# Instruction
+Please perform the following actions.
+1. Write an overview of the specified tool in markdown text and output it in the JSON format below.
+  { "content": "markdown text" }
+2. After writing the overview, run all the tools at the same time to check if they work.
+""" } )
 
     print("===REQUEST===")
     print( json.dumps( request_messages, ensure_ascii=False, indent=4 ))
@@ -129,7 +137,8 @@ def test_to_func_stream():
                 messages=request_messages,
                 model='gpt-3.5-turbo', max_tokens=1000,
                 tools=tool_list, tool_choice="auto", parallel_tool_calls=True,
-                stream=True, stream_options={'include_usage':True}
+                stream=True, stream_options={'include_usage':True},
+                response_format={ "type": "json_object" },
             )
             break
         except Exception as ex:
@@ -139,7 +148,9 @@ def test_to_func_stream():
     try:
         print("===REQSPONSE===")
         futures:list[Future] = []
-        itr:OpenAI_stream_iterator = decorder.get_iter(stream)
+        save_cnt+=1
+        savefile = f"./tmp/openai_stream_{save_cnt:04}.json"
+        itr:OpenAI_stream_iterator = decorder.get_iter(stream,savefile=savefile)
         for tool_id, tool_name, tool_args in itr:
             if not tool_id:
                 if OpenAI_stream_decorder.key_content == tool_name:
@@ -171,9 +182,33 @@ def test_to_func_stream():
             thpool.shutdown(wait=False)
         print("===")
 
-if __name__ == "__main__":
+def online_test():
     from LocalInterpreter.utils.openai_util import setup_openai_api
     setup_openai_api()
     from dotenv import load_dotenv, find_dotenv
     load_dotenv( find_dotenv('.env_google') )
     test_to_func_stream()
+
+def offline_test():
+    TEST_CASE_LIST = [
+        [ "testData/openai_stream_0001.json", "" ],
+        [ "testData/openai_stream_0002.json", "" ],
+        [ "testData/openai_stream_0003.json", "content" ],
+    ]
+    for loadfile, path in TEST_CASE_LIST:
+        if not os.path.exists(loadfile):
+            break
+        print(f"")
+        print(f"DATA:{loadfile}")
+        decorder:OpenAI_stream_decorder = OpenAI_stream_decorder()
+        if path:
+            decorder.add_stream_path( path )
+        itr:OpenAI_stream_iterator = decorder.get_iter(loadfile=loadfile)
+        for tool_id, tool_name, tool_args in itr:
+            text:str = json.dumps(tool_args,ensure_ascii=False)
+            print( f"{tool_id} {tool_name} {text}" )
+
+if __name__ == "__main__":
+    offline_test()
+
+    # online_test()
