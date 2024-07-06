@@ -46,14 +46,20 @@ def count_token( text, model:str='gpt-3.5' ) ->int:
     tokens = enc.encode(text)
     return len(tokens)
 
-def summarize( text:str, *, length:int=None, debug=False ) ->str:
+def count_message_token( m:dict, model:str='gpt-3.5' ) ->int:
+    return count_token( json.dumps(m,ensure_ascii=False), model=model )
+
+def is_japanese_text( text:str ):
+    # テキストが日本語かどうかを確認
+    ret = all(ord(char) < 128 for char in text) == False
+    return ret
+
+def summarize_web_content( text:str, *, length:int=None, debug=False ) ->str:
     print(f"[SUMMARIZE] len:{len(text)}/{length} {text[:20]}")
     openai_llm_model = 'gpt-3.5-turbo'
-    openai_timeout:Timeout = Timeout(180.0, connect=5.0, read=15.0)
-    openai_max_retries=3
 
     # テキストが日本語かどうかを確認
-    is_japanese = all(ord(char) < 128 for char in text) == False
+    is_japanese = is_japanese_text( text )
     # プロンプトの設定
     if is_japanese:
         if isinstance(length,int) and length>0:
@@ -66,6 +72,14 @@ def summarize( text:str, *, length:int=None, debug=False ) ->str:
             prompt = f"Summarize the following text about {length} tokens:\n\n{text}\n\nSummary:"
         else:
             prompt = f"Summarize the following text:\n\n{text}\n\nSummary:"
+
+    return summarize_text( text, prompt=prompt, model=openai_llm_model )
+
+def summarize_text( text:str, *, prompt:str, model:str='gpt-3.5-turbo'):
+
+    openai_llm_model = model if model else 'gpt-3.5-turbo'
+    openai_timeout:Timeout = Timeout(180.0, connect=5.0, read=15.0)
+    openai_max_retries=3
 
     request_messages = [
         { 'role':'user', 'content': prompt }
@@ -91,6 +105,101 @@ def summarize( text:str, *, length:int=None, debug=False ) ->str:
 
     return text
 
+KEY_SUMMARY_START="---Start conversation summary:"
+KEY_SUMMARY_END="---End of conversation summary---"
+
+def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_tokens:int=8000, summary_tokens:int=2000, keep_tokens:int=1000, keep_num:int=10, model:str='gtp-3.5-turbo' ):
+    n_prompt = 0
+    for m in prompts:
+        n_prompt += count_message_token(m)
+
+    old_hists:list[dict] = [ m for m in messages ]
+    new_hists:list[dict] = []
+
+    # 直近の会話
+    n_keep = 0
+    while len(old_hists)>0:
+        tk = count_message_token( old_hists[-1] )
+        if len(new_hists)>=keep_num and (n_keep+tk)>keep_tokens:
+            break
+        m = old_hists.pop()
+        n_keep += tk
+        new_hists.insert(0,m)
+
+    # 余裕分の会話
+    target = max_tokens - n_prompt - summary_tokens - n_keep
+    n_hists = 0
+    while len(old_hists)>0:
+        tk = count_message_token( old_hists[-1] )
+        if (n_hists+tk)>target:
+            break
+        m = old_hists.pop()
+        n_hists += tk
+        new_hists.insert(0,m)
+
+    if not old_hists:
+        return new_hists
+    
+    # 残りを要約する
+    mesg = []
+    for m in old_hists:
+        role = m.get('role')
+        content = m.get('content')
+        content = content.replace(KEY_SUMMARY_START,"").replace(KEY_SUMMARY_END,"").strip() if isinstance(content,str) else ''
+        if not content or ( role != 'user' and role != 'assistant' ):
+            continue
+        if KEY_SUMMARY_START in content:
+            mesg.append( f"{KEY_SUMMARY_START}\n{content}\n{KEY_SUMMARY_END}" )
+        else:
+            mesg.append( f"{role}:\n{content}")
+    if not mesg:
+        return new_hists
+
+    text:str = "\n\n".join(mesg)
+
+    target = summary_tokens-len(KEY_SUMMARY_START+KEY_SUMMARY_END)
+    target2 = int( target*0.8 )
+    if target2<=1:
+        return new_hists
+
+    for i in range(2):
+        tk = count_message_token( text )
+        if tk < target:
+            break
+
+        x_pr:str = f"""# Prompt
+        あなたは小説の編集者である。以下の手順で要約せよ。
+        1. 以下の会話から、人物の考えや感情、意味や関係性の要点だけを、Assistantの視点で、簡潔に{target2}文字以内で要約。まだ出力しない。
+        2. 要約が、{target2}文字以内であるか検証し、{target2}文字以内になるように修正する
+        3. 要約を出力する。
+        
+        # 会話内容:
+        {text}
+
+        # 要約出力:
+        {KEY_SUMMARY_START}"""
+        x_pr:str = f"""# Prompt
+        あなたは小説の編集者である。以下の手順で要約せよ。
+        1. 以下の会話から、人物の考えや感情、意味や関係性の要点だけを、Assistantの視点で、簡潔に{target2}文字以内で要約。まだ出力しない。
+        2. 要約が、{target2}文字以内であるか検証し、{target2}文字以内になるように修正する
+        3. 要約を出力する。
+        
+        # 会話内容:
+        {text}
+
+        # 要約出力:
+        {KEY_SUMMARY_START}"""
+
+        sum = summarize_text( text, prompt=x_pr, model=model )
+        text = sum.replace(KEY_SUMMARY_START,"").replace(KEY_SUMMARY_END,"").strip() if isinstance(sum,str) else ''
+
+    if tk>target:
+        over = tk-target
+        text = text[over:]
+
+    new_hists.insert( 0, {'role': 'assistant', 'content': KEY_SUMMARY_START+"\n"+ text+"\n"+KEY_SUMMARY_END })
+
+    return new_hists
 
 class OpenAI_stream_decorder:
     key_content:str = 'content'

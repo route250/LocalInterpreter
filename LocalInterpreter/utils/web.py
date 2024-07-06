@@ -10,7 +10,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 from bs4 import BeautifulSoup, Tag, Comment
 from googleapiclient.discovery import build, Resource, HttpError
 
-from LocalInterpreter.utils.openai_util import count_token, summarize
+from LocalInterpreter.utils.openai_util import count_token, summarize_web_content
 
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
@@ -330,7 +330,7 @@ def get_summary_from_text( text,length:int=1024, *, context_size:int=14000, over
         update:bool = False
         for text in input_list:
             if len(text)>target_length:
-                summary = summarize( text, length=target_length, debug=debug )
+                summary = summarize_web_content( text, length=target_length, debug=debug )
                 output_list.append( summary )
                 update = True
             else:
