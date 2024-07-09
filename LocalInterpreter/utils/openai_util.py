@@ -137,6 +137,20 @@ def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_toke
         n_hists += tk
         new_hists.insert(0,m)
 
+    # tool_callが対応しない箇所を削除
+    call_list={} # 呼び出されたid
+    for m in new_hists:
+        x=m.get("tool_calls",[])
+        for t in x:
+            cid = t.get("id")
+            if cid:
+                call_list[cid]=1
+    for i in range( len(new_hists)-1,-1,-1):
+        m = new_hists[i]
+        xid = m.get("tool_call_id") # 実行結果のid
+        if xid and call_list.get(xid) is None:
+            new_hists.pop(i)
+
     if not old_hists:
         return new_hists
     
