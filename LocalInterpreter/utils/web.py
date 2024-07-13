@@ -1,16 +1,24 @@
 
-import sys,os
+import sys,os,traceback
 import math
 import re
+import time
 import json
 from urllib import request
+from urllib.error import URLError, HTTPError
 import mimetypes
+import asyncio
+import httpx
+from httpx import Response
+from io import BytesIO
 
 from urllib.parse import urlparse, parse_qs, unquote
-from bs4 import BeautifulSoup, Tag, Comment
-from googleapiclient.discovery import build, Resource, HttpError
+from bs4 import BeautifulSoup, Tag, Comment, Doctype
 
-from LocalInterpreter.utils.openai_util import count_token, summarize_web_content
+from googleapiclient.discovery import build, Resource, HttpError
+from duckduckgo_search import DDGS
+
+from LocalInterpreter.utils.openai_util import count_token, summarize_web_content, summarize_text
 
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
@@ -37,6 +45,190 @@ def decode_and_parse_url(url):
     query_params_dict = {k: v[0] for k, v in query_params.items()}
 
     return query_params_dict
+
+async def a_fetch_html(url:str) ->bytes:
+    print(f"a_fetch_html URL={url}")
+    if not url or not url.startswith('http'):
+        return b''
+    try:
+        to = 3.0
+
+        async with httpx.AsyncClient( timeout=to, follow_redirects=True, max_redirects=2 ) as client:
+            response:Response = await client.get(url)
+            if response.status_code != 200:
+                return b''
+            # BytesIOバッファを作成
+            byte_buffer = BytesIO()
+
+            # ストリームの内容をバイト列として読み込み、BytesIOに書き込む
+            async for chunk in response.aiter_bytes():
+                byte_buffer.write(chunk)
+
+            # バッファの先頭にシーク
+            byte_buffer.seek(0)
+            return byte_buffer.getvalue()
+    except httpx.ConnectTimeout as ex:
+        return b''
+
+def duckduckgo_search( keyword, *, messages:list[dict]=None, lang:str='ja', num:int=5, debug=False ) ->str:
+    result_json:list[dict] = duckduckgo_search_json( keyword, messages=messages, lang=lang, num=num, debug=debug)
+    result_text = f"# Search keyword: {keyword}\n\n"
+    result_text += "# Search result:\n\n"
+    if isinstance(result_json,(list,tuple)):
+        for i,item in enumerate(result_json):
+            err:str = item.get('error')
+            title:str = item.get('title','')
+            link:str = item.get('link','')
+            snippet:str = item.get('snippet','')
+            if err:
+                result_text += f"ERROR: {err}\n\n"
+            if link:
+                result_text += f"{i+1}. [{title}]({link})\n"
+                result_text += f"  {snippet}\n\n"
+    else:
+        result_text += "  no results.\n"
+    return result_text
+
+def duckduckgo_search_json( keyword:str, *, messages:list[dict]=None, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
+    # 非同期コンテキスト外の場合
+    return asyncio.run( a_duckduckgo_search_json( keyword, messages=messages, lang=lang, num=num, debug=debug ) )
+    # try:
+    #     # 現在のイベントループを取得
+    #     loop = asyncio.get_running_loop()
+    # except RuntimeError:
+    #     # 非同期コンテキスト外の場合
+    #     return asyncio.run( a_search_and_scan( keyword, lang=lang, num=num, debug=debug ) )
+    # except Exception as ex:
+    #     raise ex
+    # # 非同期関数の場合
+    # return loop.run_until_complete( a_duckduckgo_search( keyword, lang=lang, num=num, debug=debug ) )
+
+async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]=None, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
+
+    search_results:list[dict] = await _a_duckduckgo_search_api( keyword, lang=lang, num=num, debug=debug )
+    if not isinstance(search_results,list) or len(search_results)==0:
+        return []
+
+    # キーワード分解
+    words = [ w for w in keyword.split() if not w.startswith('-') ]
+
+    # 会話履歴
+    prompt = None
+    if isinstance(messages,list):
+        n=0
+        prompt=""
+        target=""
+        for i in range(len(messages)-1,-1,-1):
+            m = messages[i]
+            role = m.get('role')
+            content = m.get('content')
+            if (role!='user' and role!='assistant') or not content:
+                continue
+            prompt=f"{role}: {content}\n{prompt}"
+            n+=1
+            if n>=4:
+                break
+        if n>0:
+            prompt = f"# 会話履歴\n{prompt}\n"
+            target="と会話履歴"
+
+        # 短く要約する
+        prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword)}\n\n# 検索結果のURLから取得したテキスト\n```\n{{}}\n```\n\n# 要約処理\n\n検索キーワード{target}に対応する情報を200文字以内で要約して出力して下さい.\n\n# 出力:"
+
+
+    # tasks = [ a_search_check( x, words ) for x in search_results ]
+
+    # check_results = await asyncio.gather( *tasks )
+    # results = [ r for r in check_results if r ]
+
+    results=[]
+    for item in search_results:
+        res = await _a_th_duckduckgo_search( item, words, prompt_fmt=prompt, lang=lang, num=num, debug=debug )
+        if res:
+            results.append(res)
+            if len(results)>=num:
+                break
+
+    return results
+
+async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:str=None, lang:str='ja', num:int=5, debug=False ):
+    # 検索結果からURL
+    link = item.get('link')
+    print(f"a_fetch_html URL={link}")
+    if not link:
+        return None
+    # htmlを取得して本文を取り出す
+    t1 = time.time()
+    html_text = await a_fetch_html(link)
+    text = get_text_from_html( html_text, keywords=keyword )
+    t2 = time.time()
+    print( f"{link} get {t2-t1}(sec)")
+    if not isinstance(text,str) or len(text.strip())==0:
+        return None
+
+    if prompt_fmt is None:
+        return item
+
+    # 要約
+
+    # 原文を切り出し
+    start_pos = 999999
+    for w in keyword:
+        p = text.find(w)
+        if 0<=p and p<start_pos:
+            start_pos = p
+    while start_pos>0 and text[start_pos] in '.,。':
+        start_pos -= 1
+    text = text[start_pos:start_pos+2000]
+
+    # 短く要約する
+    prompt = prompt_fmt.format(text)
+    digest = summarize_text( text, prompt=prompt )
+    t3 = time.time()
+    print( f"{link} sum {t3-t2}(sec)")
+    # snippetを更新する
+    if digest:
+        item['snippet'] = digest
+    return item
+
+async def _a_duckduckgo_search_api( keyword, *, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
+    # クエリ
+    with DDGS() as ddgs:
+        results = ddgs.text(
+            keywords=keyword,      # 検索ワード
+            region='jp-jp',       # リージョン 日本は"jp-jp",指定なしの場合は"wt-wt"
+            safesearch='moderate',     # セーフサーチOFF->"off",ON->"on",標準->"moderate"
+            timelimit=None,       # 期間指定 指定なし->None,過去1日->"d",過去1週間->"w",
+                                  # 過去1か月->"m",過去1年->"y"
+            max_results=num         # 取得件数
+        )
+    result_json=[]
+    for item in results:
+        title:str = item.get('title','')
+        link:str = item.get('href','')
+        snippet:str = item.get('body','')
+        result_json.append( {'title':title, 'link':link, 'snippet': snippet })
+
+    return result_json
+
+def google_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->str:
+    result_json:list[dict] = google_search_json( keyword, lang=lang, num=num, debug=debug)
+    result_text = f"# Search keyword: {keyword}\n\n"
+    result_text += "# Search result:\n\n"
+    if isinstance(result_json,(list,tuple)):
+        for i,item in enumerate(result_json):
+            err:str = item.get('error')
+            title:str = item.get('title','')
+            link:str = item.get('link','')
+            snippet:str = item.get('snippet','')
+            if err:
+                result_text += f"ERROR: {err}\n\n"
+            if link:
+                result_text += f"{i+1}. [{title}]({link})\n"
+                result_text += f"  {snippet}\n\n"
+    else:
+        result_text += "  no results.\n"
+    return result_text
 
 def google_search_json( keyword, *, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
 
@@ -113,6 +305,10 @@ def remove_symbols(text):
     else:
         return ''
 
+def has_text(text):
+    txt = remove_symbols(text)
+    return txt
+
 def strip_tag_text(tag:Tag):
     if not isinstance(tag,Tag) or tag.name=='a' or tag.name=='button':
         return ''
@@ -187,24 +383,91 @@ def download_from_url(url, *, directory, file_name:str=None) -> tuple[str,str]:
         return None, f"ERROR: {ex}"
 
 def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
+    response = None
     try:
         response = request.urlopen(url)
-        soup:BeautifulSoup = BeautifulSoup(response,"html.parser")
-        response.close()
+        html_bytes = response.read()
+        return get_text_from_html(html_bytes, as_raw=as_raw, as_html=as_html, debug=debug )
+    except HTTPError as e:
+        print(f"HTTP Error: {e.code} - {e.reason}")
+    except URLError as e:
+        print(f"URL Error: {e.reason}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+    except Exception as ex:
+        raise ex
+    finally:
+        try:
+            response.close()
+        except:
+            pass
+
+def get_number( filename ):
+    """ファイル名から数字を取り出す"""
+    name,_ = os.path.splitext(filename)
+    num = re.sub(r'\D', '', name ).strip()
+    return int(num) if num else 0
+
+def get_next_filename(directory, prefix='dump'):
+    """次のファイル名を決める"""
+    existing_files = [f for f in os.listdir(directory) if f.startswith(prefix)]
+    if not existing_files:
+        return os.path.join( directory, f"{prefix}0001" )
+    max_num = max( get_number(f) for f in existing_files)
+    return os.path.join( directory, f"{prefix}{max_num + 1:04d}" )
+
+def cleanup_tags(tag:Tag):
+    if tag.name=='a' or tag.name=='button':
+        return ''
+    keep = False
+    if hasattr(tag,'children'):
+        rm:list = []
+        child:Tag
+        for child in list(tag.children):
+            if cleanup_tags(child):
+                keep = True
+                if child.name == 'strong':
+                    text = child.text.strip()
+                    child.replace_with( f"**{text}**" )
+            elif child.name == 'a':
+                text = child.attrs.get('href')
+                if text:
+                    child.replace_with( f"{text.strip()}")
+                else:
+                    child.decompose()
+            elif hasattr(child,'children') and child.name!='a' and child.name!='br':
+                child.decompose()
+    else:
+        if has_text(tag.text):
+            keep = True
+        txt = remove_symbols(tag.text)
+        if txt:
+            keep = True
+    return keep
+
+def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords:list[str]=None, debug=False):
+    try:
+        
+        raw_bufffer:BytesIO = BytesIO(html_text)
+        raw_bufffer.seek(0)
+        soup:BeautifulSoup = BeautifulSoup(raw_bufffer,"html.parser")
 
         if debug:
             with open('original.html','w') as stream:
                 stream.write( soup.prettify())
 
+        time_list:list[float] = []
+        time_list.append( time.time() )
         if not as_raw:
             # コメントタグの除去
             for comment in soup(text=lambda x: isinstance(x, Comment)):
                 comment.extract()
-
+            time_list.append( time.time() ) #1
             tag:Tag = None
             # script,styleタグを除去
             for tag in soup(["script", "style", "meta"]):
                 tag.decompose()
+            time_list.append( time.time() ) #2
             # articleタグ
             articles = soup( ['article','main'] )
             if articles:
@@ -225,17 +488,17 @@ def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
                         body.append(article)
                         body.append(soup.new_string('\n'))
             # aタグを除去
+            time_list.append( time.time() ) #3
             for tag in soup(["a","button"]):
                 text = strip_tag_text(tag.parent)
                 if not text:
                     tag.decompose()
             # 子タグがなく、かつテキストが空ならタグを削除
-            for tag in soup.find_all():
-                while tag is not None and strip_tag_text(tag)=='':
-                    t = tag
-                    tag = tag.parent
-                    t.decompose()
+            time_list.append( time.time() ) #4
+            cleanup_tags( soup )
+
             # 子divの内容を親divに移動
+            time_list.append( time.time() ) #5
             for tag in soup.find_all("div"):
                 while tag is not None and tag.parent is not None:
                     children = [ c for c in tag.children if c.name or c.text.strip() ]
@@ -245,6 +508,7 @@ def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
                         tag = child_div.parent
                     else:
                         break
+            time_list.append( time.time() ) #6
             if debug:
                 with open('output.html','w') as stream:
                     stream.write( soup.prettify())
@@ -255,13 +519,34 @@ def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
         raw_text=soup.get_text()
         lines = [ line.strip() for line in raw_text.splitlines()]
         text = "\n".join( line for line in lines if line)
+
+        time_list.append( time.time() ) #7
+        t_all = time_list[-1] - time_list[0]
         if debug:
             with open('output.txt','w') as stream:
                 stream.write( text )
+
+        if t_all>2.0 or (keywords and not any(w in text for w in keywords)):
+            if t_all>2.0:
+                print(f"Too slow {t_all}sec")
+                for i in range(1,len(time_list)):
+                    print(f" {i} {time_list[i]-time_list[i-1]}sec")
+            bbb= "" if t_all<1.0 else "_SLOW"
+            dir = os.path.join('tmp','htmldump' )
+            os.makedirs(dir,exist_ok=True)
+            filename = get_next_filename( dir, prefix='dump' )
+            with open( f'{filename}{bbb}_raw.html','wb') as stream:
+                stream.write( raw_bufffer.getvalue() )
+            with open( f'{filename}{bbb}_strip.html','w') as stream:
+                stream.write( soup.prettify())
+            with open( f'{filename}{bbb}.txt','w') as stream:
+                stream.write( text )
+
         return text
 
-    except:
-        print(f"error {url}")
+    except Exception as ex:
+        traceback.print_exc()
+        print(f"error {ex}")
     return None
 
 def text_to_chunks( text:str, chunk_size:int=2000, overlap:int=100 ) ->list[str]:

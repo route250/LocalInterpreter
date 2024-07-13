@@ -34,7 +34,7 @@ class WebSearchService(QuartServiceBase):
         if not keyword:
             return jsonify({'error': f'No {INP_KEYWORD} provided'}), 400
         try:
-            result:str = web.google_search( keyword )
+            result:str = web.duckduckgo_search( keyword )
             return result
         except Exception as e:
             traceback.print_exc()

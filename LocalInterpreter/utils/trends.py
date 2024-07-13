@@ -121,7 +121,7 @@ def today_searches_result( *, lang='ja', num=10, debug=False):
     yesterday = datetime.now() - timedelta(days=1)
     yesterday_str:str = yesterday.strftime("%Y-%m-%d")
     query = f"( {search_keywords} ) after:{yesterday_str}"
-    result_all_list:list[dict] = web.google_search_json( query, lang=lang, num=10, debug=debug)
+    result_all_list:list[dict] = web.duckduckgo_search_json( query, lang=lang, num=20, debug=debug)
     # {'title':title, 'link':link, 'snippet': snippet }
 
     counter = {}
