@@ -414,6 +414,13 @@ class OpenAI_stream_iterator:
             traceback.print_exc()
             raise ex
 
+    def get_value(self, path):
+        if self.json_parser:
+            data = trim_json( self.json_parser.get() )
+            if data:
+                return data.get(path)
+        return None
+
     def to_json(self):
         if self.json_parser:
             content_json = trim_json( self.json_parser.get() )

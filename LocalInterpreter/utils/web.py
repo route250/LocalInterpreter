@@ -49,14 +49,14 @@ def decode_and_parse_url(url):
 async def a_fetch_html(url:str) ->bytes:
     print(f"a_fetch_html URL={url}")
     if not url or not url.startswith('http'):
-        return b''
+        return b'','url is invalid.'
     try:
         to = 3.0
 
         async with httpx.AsyncClient( timeout=to, follow_redirects=True, max_redirects=2 ) as client:
             response:Response = await client.get(url)
             if response.status_code != 200:
-                return b''
+                return b'',f'http response code is {response.status_code}.'
             # BytesIOバッファを作成
             byte_buffer = BytesIO()
 
@@ -66,9 +66,11 @@ async def a_fetch_html(url:str) ->bytes:
 
             # バッファの先頭にシーク
             byte_buffer.seek(0)
-            return byte_buffer.getvalue()
+            return byte_buffer.getvalue(),None
     except httpx.ConnectTimeout as ex:
-        return b''
+        return b'',f'{ex}'
+    except httpx.ReadTimeout as ex:
+        return b'',f'{ex}'
 
 def duckduckgo_search( keyword, *, messages:list[dict]=None, lang:str='ja', num:int=5, debug=False ) ->str:
     result_json:list[dict] = duckduckgo_search_json( keyword, messages=messages, lang=lang, num=num, debug=debug)
@@ -159,7 +161,10 @@ async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:s
         return None
     # htmlを取得して本文を取り出す
     t1 = time.time()
-    html_text = await a_fetch_html(link)
+    html_text,err = await a_fetch_html(link)
+    if err:
+        item['err'] = err
+        return item
     text = get_text_from_html( html_text, keywords=keyword )
     t2 = time.time()
     print( f"{link} get {t2-t1}(sec)")
@@ -380,6 +385,7 @@ def download_from_url(url, *, directory, file_name:str=None) -> tuple[str,str]:
         return dst_filename, msg
 
     except Exception as ex:
+        traceback.print_exc()
         return None, f"ERROR: {ex}"
 
 def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
