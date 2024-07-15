@@ -13,12 +13,14 @@ from httpx import Response
 from io import BytesIO
 
 from urllib.parse import urlparse, parse_qs, unquote
-from bs4 import BeautifulSoup, Tag, Comment, Doctype
+from lxml import etree
+from lxml.etree import _ElementTree as ETree, _Element as Elem
 
 from googleapiclient.discovery import build, Resource, HttpError
 from duckduckgo_search import DDGS
 
 from LocalInterpreter.utils.openai_util import count_token, summarize_web_content, summarize_text
+import LocalInterpreter.utils.lxml_util as Xu
 
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
@@ -299,33 +301,6 @@ def google_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->str:
         result_text += "  no results.\n"
     return result_text
 
-
-def remove_symbols(text):
-    if isinstance(text,str):
-        # 記号を削除する正規表現（日本語文字を保持）
-        # \u3000-\u303F：全角の記号や句読点。
-        # \u3040-\u30FF：ひらがなとカタカナ。
-        # \u4E00-\u9FFF：漢字。
-        return re.sub(r'[^\w\s\u3040-\u30FF\u4E00-\u9FFF]', '', text).strip()
-    else:
-        return ''
-
-def has_text(text):
-    txt = remove_symbols(text)
-    return txt
-
-def strip_tag_text(tag:Tag):
-    if not isinstance(tag,Tag) or tag.name=='a' or tag.name=='button':
-        return ''
-    child:Tag
-    text = ''
-    for child in tag.children:
-        if child.name=='a' or child.name=='button':
-            continue
-        text += remove_symbols(child.text)
-    return text
-
-
 def download_from_url(url, *, directory, file_name:str=None) -> tuple[str,str]:
     try:
         # フォルダが存在しない場合
@@ -422,131 +397,129 @@ def get_next_filename(directory, prefix='dump'):
     max_num = max( get_number(f) for f in existing_files)
     return os.path.join( directory, f"{prefix}{max_num + 1:04d}" )
 
-def cleanup_tags(tag:Tag):
-    if tag.name=='a' or tag.name=='button':
-        return ''
-    keep = False
-    if hasattr(tag,'children'):
-        rm:list = []
-        child:Tag
-        for child in list(tag.children):
-            if cleanup_tags(child):
-                keep = True
-                if child.name == 'strong':
-                    text = child.text.strip()
-                    child.replace_with( f"**{text}**" )
-            elif child.name == 'a':
-                text = child.attrs.get('href')
-                if text:
-                    child.replace_with( f"{text.strip()}")
-                else:
-                    child.decompose()
-            elif hasattr(child,'children') and child.name!='a' and child.name!='br':
-                child.decompose()
-    else:
-        if has_text(tag.text):
-            keep = True
-        txt = remove_symbols(tag.text)
-        if txt:
-            keep = True
-    return keep
+def cleanup_tags(elem:Elem):
+    if elem.tag == 'a':
+        href = elem.get('href')
+        if href:
+            for key in list(elem.attrib.keys()):
+                del elem.attrib[key]
+            elem.tag='span'
+            children:list[Elem] = list(elem)
+            if len(children)==0:
+                elem.text = "["+ Xu.strip(elem.text) + f"]({href})"
+            else:
+                elem.text = "[" + Xu.strip(elem.text)
+                last:Elem = children[-1]
+                last.tail = Xu.strip(last.tail) + f"]({href})"
+        return True
+    # if elem.tag in {'a', 'button'}:
+    #     elem.clear()
+    #     return False
 
-def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords:list[str]=None, debug=False):
+    keep = False
+    for child in list(elem):
+        if cleanup_tags(child):
+            keep = True
+        # elif child.tag not in {'a', 'br'} and len(child):
+        else:
+            Xu.remove_tag(child)
+    if keep or Xu.has_texts(elem.text):
+        return True
+    return False
+
+def strip_tag_text(elem:Elem) ->bool:
+    if elem.tag=='a' or elem.tag=='button':
+        return False
+    if Xu.has_texts(elem.text):
+        return True
+    for child in elem:
+        if child.tag=='a' or child.tag=='button':
+            continue
+        if Xu.is_available(child) or Xu.has_texts(child.tail):
+            return True
+    return False
+
+def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None, debug=False):
     try:
-        
-        raw_bufffer:BytesIO = BytesIO(html_text)
-        raw_bufffer.seek(0)
-        soup:BeautifulSoup = BeautifulSoup(raw_bufffer,"html.parser")
+        raw_buffer = BytesIO(html_text)
+        raw_buffer.seek(0)
+        parser = etree.HTMLParser(remove_comments=True)
+        tree = etree.parse(raw_buffer, parser)
+        root = tree.getroot()
 
         if debug:
-            with open('original.html','w') as stream:
-                stream.write( soup.prettify())
+            with open('original.html', 'w') as stream:
+                stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
 
-        time_list:list[float] = []
-        time_list.append( time.time() )
+        time_list = [time.time()]
         if not as_raw:
-            # コメントタグの除去
-            for comment in soup(text=lambda x: isinstance(x, Comment)):
-                comment.extract()
-            time_list.append( time.time() ) #1
-            tag:Tag = None
-            # script,styleタグを除去
-            for tag in soup(["script", "style", "meta"]):
-                tag.decompose()
-            time_list.append( time.time() ) #2
-            # articleタグ
-            articles = soup( ['article','main'] )
+            # 絶対不要なタグを削除
+            etree.strip_elements(root, "script", "style", "meta", with_tail=False)
+            time_list.append(time.time())  # 1
+            # もしarticleタグmainタグが見つかれば、それ以外を消す
+            articles = root.xpath('//article|//main')
             if articles:
-                uniq = []
-                for tag in articles:
-                    parent:Tag = tag.parent
-                    while parent and not parent in articles:
-                        parent = parent.parent
-                    if not parent:
-                        uniq.append(tag)
-                if uniq:
-                    body = soup.body
-                    # bodyの中身をクリア
-                    body.clear()
-                    # 全てのarticle要素をbodyに追加
-                    for article in uniq:
-                        parent = article.parent
-                        body.append(article)
-                        body.append(soup.new_string('\n'))
-            # aタグを除去
-            time_list.append( time.time() ) #3
-            for tag in soup(["a","button"]):
-                text = strip_tag_text(tag.parent)
-                if not text:
-                    tag.decompose()
-            # 子タグがなく、かつテキストが空ならタグを削除
-            time_list.append( time.time() ) #4
-            cleanup_tags( soup )
+                body = root.find('body')
+                body.clear()
+                for article in articles:
+                    body.append(article)
+            time_list.append(time.time())  # 2
+            # <b>と<strong>を解除
+            for elem in root.xpath('//b|//strong'):
+                Xu.pop_tag(elem)
+            # aタグ、buttonタグの周囲に何も無ければ広告とみなして削除
+            for element in root.xpath('//a|//button'):
+                parent = element.getparent()
+                if not strip_tag_text(parent):
+                    Xu.remove_tag(element)
+            time_list.append(time.time())  # 3
 
-            # 子divの内容を親divに移動
-            time_list.append( time.time() ) #5
-            for tag in soup.find_all("div"):
-                while tag is not None and tag.parent is not None:
-                    children = [ c for c in tag.children if c.name or c.text.strip() ]
-                    if len(children) == 1 and children[0].name == "div":
+            cleanup_tags(root)
+            time_list.append(time.time())  # 4
+
+            for element in root.xpath('//div'):
+                while element is not None and element.getparent() is not None:
+                    children = [child for child in element if child.tag or (child.text and child.text.strip())]
+                    if len(children) == 1 and children[0].tag == 'div':
                         child_div = children[0]
-                        tag.replace_with(child_div)
-                        tag = child_div.parent
+                        element.getparent().replace(element, child_div)
+                        element = child_div
                     else:
                         break
-            time_list.append( time.time() ) #6
+            time_list.append(time.time())  # 5
+
             if debug:
-                with open('output.html','w') as stream:
-                    stream.write( soup.prettify())
+                with open('output.html', 'w') as stream:
+                    stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
 
         if as_html:
-            return soup.prettify()
-        
-        raw_text=soup.get_text()
-        lines = [ line.strip() for line in raw_text.splitlines()]
-        text = "\n".join( line for line in lines if line)
+            return etree.tostring(root, pretty_print=True, encoding='unicode')
 
-        time_list.append( time.time() ) #7
+        raw_text = ''.join(root.itertext())
+        lines = [line.strip() for line in raw_text.splitlines()]
+        text = "\n".join(line for line in lines if line)
+
+        time_list.append(time.time())  # 6
         t_all = time_list[-1] - time_list[0]
         if debug:
-            with open('output.txt','w') as stream:
-                stream.write( text )
+            with open('output.txt', 'w') as stream:
+                stream.write(text)
 
-        if t_all>2.0 or (keywords and not any(w in text for w in keywords)):
-            if t_all>2.0:
+        if t_all > 0.1 or (keywords and not any(w in text for w in keywords)):
+            if t_all > 0.1:
                 print(f"Too slow {t_all}sec")
-                for i in range(1,len(time_list)):
-                    print(f" {i} {time_list[i]-time_list[i-1]}sec")
-            bbb= "" if t_all<1.0 else "_SLOW"
-            dir = os.path.join('tmp','htmldump' )
-            os.makedirs(dir,exist_ok=True)
-            filename = get_next_filename( dir, prefix='dump' )
-            with open( f'{filename}{bbb}_raw.html','wb') as stream:
-                stream.write( raw_bufffer.getvalue() )
-            with open( f'{filename}{bbb}_strip.html','w') as stream:
-                stream.write( soup.prettify())
-            with open( f'{filename}{bbb}.txt','w') as stream:
-                stream.write( text )
+                for i in range(1, len(time_list)):
+                    print(f" {i} {time_list[i] - time_list[i - 1]}sec")
+            bbb = "" if t_all < 1.0 else "_SLOW"
+            dir = os.path.join('tmp', 'htmldump')
+            os.makedirs(dir, exist_ok=True)
+            filename = os.path.join(dir,'dump') #get_next_filename(dir, prefix='dump')
+            with open(f'{filename}{bbb}_raw.html', 'wb') as stream:
+                stream.write(html_text)
+            with open(f'{filename}{bbb}_strip.html', 'w') as stream:
+                stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
+            with open(f'{filename}{bbb}.txt', 'w') as stream:
+                stream.write(text)
 
         return text
 
