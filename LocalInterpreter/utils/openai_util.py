@@ -141,15 +141,22 @@ def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_toke
     call_list={} # 呼び出されたid
     for m in new_hists:
         x=m.get("tool_calls",[])
-        for t in x:
-            cid = t.get("id")
-            if cid:
-                call_list[cid]=1
+        if x:
+            print(f"[summarize] tool_calls {x}")
+            for t in x:
+                cid = t.get("id")
+                if cid:
+                    print(f"[summarize] cid {cid}")
+                    call_list[cid]=1
     for i in range( len(new_hists)-1,-1,-1):
         m = new_hists[i]
         xid = m.get("tool_call_id") # 実行結果のid
-        if xid and call_list.get(xid) is None:
-            new_hists.pop(i)
+        if xid:
+            if call_list.get(xid) is None:
+                print(f"[summarize] {xid} remove ")
+                new_hists.pop(i)
+            else:
+                print(f"[summarize] {xid} keep ")
 
     if not old_hists:
         return new_hists
