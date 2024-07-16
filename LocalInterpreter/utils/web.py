@@ -399,31 +399,40 @@ def get_next_filename(directory, prefix='dump'):
 
 def cleanup_tags(elem:Elem):
     if elem.tag == 'a':
-        href = elem.get('href')
-        if href:
-            for key in list(elem.attrib.keys()):
-                del elem.attrib[key]
-            elem.tag='span'
-            children:list[Elem] = list(elem)
-            if len(children)==0:
-                elem.text = "["+ Xu.strip(elem.text) + f"]({href})"
-            else:
-                elem.text = "[" + Xu.strip(elem.text)
-                last:Elem = children[-1]
-                last.tail = Xu.strip(last.tail) + f"]({href})"
+        href:str = elem.get('href')
+        if href and ( href.startswith('https://') or href.startswith('http://')):
+            prefix = "["
+            postfix = f"]({href})"
+        else:
+            prefix = postfix = ""
+        for key in list(elem.attrib.keys()):
+            del elem.attrib[key]
+        elem.tag='span'
+        children:list[Elem] = list(elem)
+        if len(children)==0:
+            elem.text = prefix+ Xu.strip(elem.text) + postfix
+        else:
+            elem.text = prefix + Xu.strip(elem.text)
+            last:Elem = children[-1]
+            last.tail = Xu.strip(last.tail) + postfix
         return True
     # if elem.tag in {'a', 'button'}:
     #     elem.clear()
     #     return False
 
-    keep = False
+    keep:int = 0
     for child in list(elem):
         if cleanup_tags(child):
-            keep = True
+            keep += 1
         # elif child.tag not in {'a', 'br'} and len(child):
         else:
             Xu.remove_tag(child)
-    if keep or Xu.has_texts(elem.text):
+    if keep==1 and elem.tag in ('div','span'):
+        child = list(elem)[0]
+        if child.tag == elem.tag:
+            Xu.pop_tag(child)
+        return True
+    if keep>0 or Xu.has_texts(elem.text):
         return True
     return False
 
@@ -467,25 +476,15 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
             # <b>と<strong>を解除
             for elem in root.xpath('//b|//strong'):
                 Xu.pop_tag(elem)
+            time_list.append(time.time())  # 3
             # aタグ、buttonタグの周囲に何も無ければ広告とみなして削除
             for element in root.xpath('//a|//button'):
                 parent = element.getparent()
                 if not strip_tag_text(parent):
                     Xu.remove_tag(element)
-            time_list.append(time.time())  # 3
-
-            cleanup_tags(root)
             time_list.append(time.time())  # 4
 
-            for element in root.xpath('//div'):
-                while element is not None and element.getparent() is not None:
-                    children = [child for child in element if child.tag or (child.text and child.text.strip())]
-                    if len(children) == 1 and children[0].tag == 'div':
-                        child_div = children[0]
-                        element.getparent().replace(element, child_div)
-                        element = child_div
-                    else:
-                        break
+            cleanup_tags(root)
             time_list.append(time.time())  # 5
 
             if debug:

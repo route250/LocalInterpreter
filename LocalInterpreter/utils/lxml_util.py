@@ -29,9 +29,25 @@ def strip( text:str|None ) ->str:
         return text.strip()
     return ''
 
+def stripE( text:str|None ) ->str:
+    if is_empty(text):
+        return ''
+
+def eq( a:str|None,b:str|None) ->bool:
+    if not isinstance(a,str):
+        a=''
+    if not isinstance(b,str):
+        b=''
+    return a==b
+
 def is_empty( text:str ) ->bool:
     if isinstance(text,str) and len(text.strip())>0:
         return False
+    return True
+
+def is_blank_or_space( text:str|None ) ->bool:
+    if isinstance(text,str):
+        return 0==(len(text.strip()))
     return True
 
 def join( a:str|None, b:str|None ) -> str:
@@ -81,31 +97,185 @@ def get_elem_list( elem:Elem, name:str ) ->Iterator[Elem]:
         if child.tag == name:
             yield child
 
+def xs( text:str|None ) ->str:
+    if isinstance(text,str) and len(text)>0:
+        return text
+    return None
+
+def xs_is_empty( text:str|None ) ->bool:
+    if isinstance(text,str) and len(text)>0:
+        return False
+    return True
+
+def xs_is_space( text:str|None ) ->bool:
+    if isinstance(text,str) and len(text.strip())>0:
+        return False
+    return True
+
+def xs_strip(text:str|None ) ->str:
+    if isinstance(text,str) and len(text)>0:
+        text = text.strip()
+        if len(text)>0:
+            return text
+    return None
+
+def xs_join( a:str|None, b:str|None ) -> str:
+    if xs_is_empty(a):
+        return b if not xs_is_empty(b) else None
+    elif xs_is_empty(b):
+        return a
+    return a+b
+
+"""
+タグを削除するパターン
+1.
+<h1>{h1.text:
+  }<strong>{strong.text:
+     あいうえお
+  }</strong>{strong.tail:
+}</h1>
+
+h1.text = h1.text + trim(strong.text) + strong.tail
+
+<h1></h1>
+
+2.
+<h1>{h1.text:
+  }<strong>{strong.text:
+     あいうえお
+  }</strong>{strong.tail:
+  }<b>{b.text:
+     かきくけこ
+  }</b>{b.tail:
+}</h1>
+
+h1.text = h1.text + trim(strong.text) + strong.tail
+
+<h1>
+  <b>
+    かきくけこ
+  </b>
+</h1>
+
+3.
+<h1>{h1.text:
+  }<strong>{strong.text:
+     あいうえお
+  }</strong>{strong.tail:
+  }<b>{b.text:
+     かきくけこ
+  }</b>{b.tail:
+}</h1>
+
+strong.tail = strong.tail + trim(b.text) + b.tail
+
+<h1>
+  <strong>
+    あいうえお
+  </strong>
+</h1>
+
+"""
 def remove_tag(elem:Elem):
     parent:Elem = elem.getparent()
     prev:Elem|None = elem.getprevious()
     if prev is None:
-        parent.text = str_merge( parent.text, elem.tail )
+        if not xs_is_space(elem.tail):
+            parent.text = xs_join( parent.text, elem.tail )
     else:
-        prev.tail = str_merge( prev.tail, elem.tail )
+        if not xs_is_space(elem.tail):
+            prev.tail = xs_join( prev.tail, elem.tail )
     parent.remove(elem)
+
+"""
+タグを削除するパターン
+1.
+<h1>{h1.text:
+  }<strong>{strong.text:
+     あいうえお
+  }</strong>{strong.tail:
+}</h1>
+
+h1.text = h1.text + trim(strong.text) + strong.tail
+
+<h1>
+  あいうえお
+</h1>
+
+2.
+<h1>{h1.text:
+  }<strong>{strong.text:
+     あいうえお
+  }</strong>{strong.tail:
+  }<b>{b.text:
+     かきくけこ
+  }</b>{b.tail:
+}</h1>
+
+h1.text = h1.text + trim(strong.text) + strong.tail
+
+<h1>
+  あいうえお
+  <b>
+    かきくけこ
+  </b>
+</h1>
+
+3.
+<h1>{h1.text:
+  }<strong>{strong.text:
+     あいうえお
+  }</strong>{strong.tail:
+  }<b>{b.text:
+     かきくけこ
+  }</b>{b.tail:
+}</h1>
+
+strong.tail = strong.tail + trim(b.text) + b.tail
+
+<h1>
+  <strong>
+    あいうえお
+  </strong>
+  かきくけこ
+</h1>
+
+"""
 
 def pop_tag(elem:Elem):
     parent:Elem = elem.getparent()
-    index:int = parent.index(elem)
+    prev:Elem|None = elem.getprevious()
     children:list[Elem] = list(elem)
+    if len(children)==0:
+        if prev is None:
+            parent.text = xs_join( parent.text, xs_join( xs_strip(elem.text), elem.tail ) )
+        else:
+            prev.tail = xs_join( prev.tail, xs_join( xs_strip(elem.text), elem.tail ) )
+        parent.remove(elem)
+        return
+    
+    index:int = parent.index(elem)
     parent.remove(elem)
-    # テキスト
-    if len(children)>0:
-        first:Elem = children[0]
-        first.text = str_merge( elem.text, first.text)
-        last:Elem = children[-1]
-        last.tail = str_merge( last.tail, elem.tail)
-        for i, child in enumerate(children):
-            parent.insert(index+i,child)
+    # elem.textをひとつ前の要素の押し付ける
+    if prev is None:
+        if xs_is_space(parent.text):
+            parent.text = xs( elem.text )
+        elif not xs_is_space(elem.text):
+            parent.text = xs_join(parent.text, xs_strip(elem.text) )
     else:
-        parent.text = strip(parent.text) + strip(elem.text)
-        parent.tail = strip(elem.tail) + strip(parent.tail)
+        if xs_is_space(prev.tail):
+            prev.tail = xs( elem.text )
+        elif not xs_is_space(elem.text):
+            prev.tail = xs_join(prev.tail, xs_strip(elem.text) )
+    # elem.tailを最後の子要素に押し付ける
+    last:Elem = children[-1]
+    if xs_is_space(last.tail):
+        last.tail = xs( elem.tail )
+    elif not xs_is_space(elem.tail):
+        last.tail = xs_join( last.tail, elem.tail )
+    # 子要素を追加
+    for i, child in enumerate(children):
+        parent.insert(index+i,child)
 
 def remove_symbols(text:str|None) ->str:
     if isinstance(text,str):
