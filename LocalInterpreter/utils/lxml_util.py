@@ -277,19 +277,40 @@ def pop_tag(elem:Elem):
     for i, child in enumerate(children):
         parent.insert(index+i,child)
 
-def remove_symbols(text:str|None) ->str:
-    if isinstance(text,str):
-        # 記号を削除する正規表現（日本語文字を保持）
-        # \u3000-\u303F：全角の記号や句読点。
-        # \u3040-\u30FF：ひらがなとカタカナ。
-        # \u4E00-\u9FFF：漢字。
-        return re.sub(r'[^\w\s\u3040-\u30FF\u4E00-\u9FFF]', '', text).strip()
-    else:
-        return ''
+# re_symbol_replace:re.Pattern = re.compile(r'[^\w\s\u3040-\u30FF\u4E00-\u9FFF]')
 
-def has_texts(text:str|None) ->bool:
-    txt = remove_symbols(text)
-    return txt is not None and len(txt)>0
+# def remove_symbols(text:str|None) ->str:
+#     if isinstance(text,str):
+#         # 記号を削除する正規表現（日本語文字を保持）
+#         # \u3000-\u303F：全角の記号や句読点。
+#         # \u3040-\u30FF：ひらがなとカタカナ。
+#         # \u4E00-\u9FFF：漢字。
+#         return re_symbol_replace.sub( '', text).strip()
+#         #return re.sub(r'[^\w\s\u3040-\u30FF\u4E00-\u9FFF]', '', text).strip()
+#     else:
+#         return ''
+
+# re_symbol_check:re.Pattern = re.compile( r'[\w\u3040-\u30FF\u4E00-\u9FFF]' )
+
+# def has_texts(text:str|None) ->bool:
+#     if isinstance(text,str):
+#         m = re_symbol_check.search( text )
+#         return m is not None
+#     return False
+
+def has_texts(text: str | None) -> bool:
+    if isinstance(text, str):
+        for cc in text:
+            code = ord(cc)
+            if 0x30<=code and code<=0x39:
+                return True
+            if 0x41<=code and code<=0x5a:
+                return True
+            if 0x61<=code and code<=0x7a:
+                return True
+            if code <0x7f:
+                return True
+    return False
 
 def is_available(elem:Elem) ->bool:
     if has_texts( elem.text ):

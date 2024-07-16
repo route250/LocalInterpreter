@@ -421,18 +421,25 @@ def cleanup_tags(elem:Elem):
     #     return False
 
     keep:int = 0
-    for child in list(elem):
+    remove_list:list[Elem] = []
+    for child in elem:
         if cleanup_tags(child):
             keep += 1
         # elif child.tag not in {'a', 'br'} and len(child):
         else:
-            Xu.remove_tag(child)
-    if keep==1 and elem.tag in ('div','span'):
-        child = list(elem)[0]
-        if child.tag == elem.tag:
-            Xu.pop_tag(child)
+            remove_list.append(child)
+    if keep>0:
+        for e in remove_list:
+            Xu.remove_tag(e)
+        if keep==1 and elem.tag in ('div','span'):
+            child = list(elem)[0]
+            if child.tag == elem.tag:
+                Xu.pop_tag(child)
         return True
-    if keep>0 or Xu.has_texts(elem.text):
+    if Xu.has_texts(elem.text):
+        for e in remove_list:
+            Xu.remove_tag(e)
+        elem.text = Xu.xs_strip(elem.text)
         return True
     return False
 
@@ -456,8 +463,11 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
         tree = etree.parse(raw_buffer, parser)
         root = tree.getroot()
 
+        tmpdir = os.path.join('tmp', 'htmldump')
+
         if debug:
-            with open('original.html', 'w') as stream:
+            os.makedirs(tmpdir, exist_ok=True)
+            with open( os.path.join(tmpdir,'original.html' ), 'w') as stream:
                 stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
 
         time_list = [time.time()]
@@ -488,7 +498,7 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
             time_list.append(time.time())  # 5
 
             if debug:
-                with open('output.html', 'w') as stream:
+                with open(os.path.join(tmpdir,'output.html'), 'w') as stream:
                     stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
 
         if as_html:
@@ -501,18 +511,17 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
         time_list.append(time.time())  # 6
         t_all = time_list[-1] - time_list[0]
         if debug:
-            with open('output.txt', 'w') as stream:
+            with open(os.path.join(tmpdir,'output.txt'), 'w') as stream:
                 stream.write(text)
 
-        if t_all > 0.1 or (keywords and not any(w in text for w in keywords)):
-            if t_all > 0.1:
-                print(f"Too slow {t_all}sec")
+        if debug or t_all > 0.1 or (keywords and not any(w in text for w in keywords)):
+            if debug or t_all > 0.1:
+                print(f"Text time {t_all}sec")
                 for i in range(1, len(time_list)):
                     print(f" {i} {time_list[i] - time_list[i - 1]}sec")
             bbb = "" if t_all < 1.0 else "_SLOW"
-            dir = os.path.join('tmp', 'htmldump')
-            os.makedirs(dir, exist_ok=True)
-            filename = os.path.join(dir,'dump') #get_next_filename(dir, prefix='dump')
+            os.makedirs(tmpdir, exist_ok=True)
+            filename = os.path.join(tmpdir,'dump') #get_next_filename(dir, prefix='dump')
             with open(f'{filename}{bbb}_raw.html', 'wb') as stream:
                 stream.write(html_text)
             with open(f'{filename}{bbb}_strip.html', 'w') as stream:
