@@ -398,23 +398,7 @@ def get_next_filename(directory, prefix='dump'):
     return os.path.join( directory, f"{prefix}{max_num + 1:04d}" )
 
 def cleanup_tags(elem:Elem):
-    if elem.tag == 'a':
-        href:str = elem.get('href')
-        if href and ( href.startswith('https://') or href.startswith('http://')):
-            prefix = "["
-            postfix = f"]({href})"
-        else:
-            prefix = postfix = ""
-        for key in list(elem.attrib.keys()):
-            del elem.attrib[key]
-        elem.tag='span'
-        children:list[Elem] = list(elem)
-        if len(children)==0:
-            elem.text = prefix+ Xu.strip(elem.text) + postfix
-        else:
-            elem.text = prefix + Xu.strip(elem.text)
-            last:Elem = children[-1]
-            last.tail = Xu.strip(last.tail) + postfix
+    if elem.tag == "br":
         return True
     # if elem.tag in {'a', 'button'}:
     #     elem.clear()
@@ -500,15 +484,17 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
             if debug:
                 with open(os.path.join(tmpdir,'output.html'), 'w') as stream:
                     stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
+            time_list.append(time.time())  # 6
 
         if as_html:
             return etree.tostring(root, pretty_print=True, encoding='unicode')
 
-        raw_text = ''.join(root.itertext())
-        lines = [line.strip() for line in raw_text.splitlines()]
-        text = "\n".join(line for line in lines if line)
+        # raw_text = ''.join(root.itertext())
+        #lines = [line.strip() for line in raw_text.splitlines()]
+        #text = "\n".join(line for line in lines if line)
+        text = Xu.to_text(root)
 
-        time_list.append(time.time())  # 6
+        time_list.append(time.time())  # 7
         t_all = time_list[-1] - time_list[0]
         if debug:
             with open(os.path.join(tmpdir,'output.txt'), 'w') as stream:

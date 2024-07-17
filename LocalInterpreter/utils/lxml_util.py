@@ -119,6 +119,24 @@ def xs_strip(text:str|None ) ->str:
             return text
     return None
 
+re_space_replace1:re.Pattern = re.compile(r'[ \t] +')
+re_space_replace2:re.Pattern = re.compile(r'\n[ \t]*')
+re_space_replace3:re.Pattern = re.compile(r'\n+')
+re_space_replace4:re.Pattern = re.compile(r'^[\s]*')
+re_space_replace:re.Pattern = re.compile(r'\s+')
+
+def xs_trimA( text:str|None ) ->str:
+    if isinstance(text,str):
+        # atext = re_space_replace1.sub(' ',text)
+        # atext = re_space_replace2.sub('\n',atext)
+        # atext = re_space_replace3.sub('\n',atext)
+        # atext = re_space_replace3.sub('',atext)
+        atext = re_space_replace1.sub(' ',text).strip()
+        if atext:
+            return atext
+    return None
+
+
 def xs_join( a:str|None, b:str|None ) -> str:
     if xs_is_empty(a):
         return b if not xs_is_empty(b) else None
@@ -308,7 +326,7 @@ def has_texts(text: str | None) -> bool:
                 return True
             if 0x61<=code and code<=0x7a:
                 return True
-            if code <0x7f:
+            if 0xff < code:
                 return True
     return False
 
@@ -321,3 +339,60 @@ def is_available(elem:Elem) ->bool:
         if has_texts(child.tail):
             return True
     return False
+md_h_map = {
+    'h1':"\n\n# ",
+    'h2':"\n\n## ",
+    'h3':"\n\n### ",
+    'h4':"\n\n#### ",
+}
+md_pre_map = {
+    'footer': "\n---\n",
+    'title': "\n",
+    'div': "\n",
+    'h1': "\n# ",
+    'h2': "\n## ",
+    'h3': "\n### ",
+    'h4': "\n#### ",
+    'table': "\n",
+    'td': "|",
+    'th': "|",
+}
+md_post_map = {
+    'br': "\n",
+    'head': "\n---\n",
+    'title': "\n",
+    'div': "\n",
+    'p': "\n",
+    'li': "\n",
+    'h1': "\n",
+    'h2': "\n",
+    'h3': "\n",
+    'h4': "\n",
+    'table': "\n",
+    'tr': "\n",
+}
+def to_text(elem:Elem):
+    try:
+        # if elem.tag in md_h_map:
+        #     text = child_to_text("",elem)
+        #     return md_h_map[elem.tag]+trimA(text)+"\n"
+
+        pre:str = md_pre_map.get(elem.tag)
+        text = xs_strip( child_to_text("",elem) )
+        if elem.tag == 'a':
+            href:str = elem.get('href')
+            if href and ( href.startswith('https://') or href.startswith('http://')):
+                text = f"[{text}]({href})"
+        post:str = md_post_map.get(elem.tag)
+        atext = xs_join(pre,text)
+        atext = xs_join(atext,post)
+        return atext
+    except Exception as ex:
+        raise ex
+
+def child_to_text( text:str, elem:Elem ) ->str:
+    text = xs_join(text,xs_trimA(elem.text))
+    for child in elem:
+        text = xs_join(text,to_text(child))
+        text = xs_join(text, xs_trimA(child.tail) )
+    return text
