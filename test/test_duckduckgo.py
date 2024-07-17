@@ -3,9 +3,13 @@ import asyncio
 from io import BytesIO
 from duckduckgo_search import DDGS
 import json
+import logging
 
 sys.path.append(os.getcwd())
+import LocalInterpreter.utils.logger_util as log_util
 import LocalInterpreter.utils.web as web
+
+log_util.setup_logger( lv = logging.DEBUG )
 
 def sample():
     # クエリ

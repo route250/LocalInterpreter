@@ -4,6 +4,7 @@ import math
 import re
 import time
 import json
+import itertools
 from urllib import request
 from urllib.error import URLError, HTTPError
 import mimetypes
@@ -21,6 +22,9 @@ from duckduckgo_search import DDGS
 
 from LocalInterpreter.utils.openai_util import count_token, summarize_web_content, summarize_text
 import LocalInterpreter.utils.lxml_util as Xu
+
+import logging
+logger = logging.getLogger('WebUtil')
 
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
@@ -49,7 +53,7 @@ def decode_and_parse_url(url):
     return query_params_dict
 
 async def a_fetch_html(url:str) ->bytes:
-    print(f"a_fetch_html URL={url}")
+    logger.info(f"a_fetch_html URL={url}")
     if not url or not url.startswith('http'):
         return b'','url is invalid.'
     try:
@@ -114,8 +118,13 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]=None, la
         return []
 
     # キーワード分解
-    words = [ w for w in keyword.split() if not w.startswith('-') ]
-
+    words = []
+    for w in keyword.split():
+        if w.startswith('-') or w.startswith('after:') or w.startswith('before:'):
+            continue
+        if w == '(' or w == ')' or w=='AND' or w=='OR':
+            continue
+        words.append(w)
     # 会話履歴
     prompt = None
     if isinstance(messages,list):
@@ -155,28 +164,38 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]=None, la
 
     return results
 
-async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:str=None, lang:str='ja', num:int=5, debug=False ):
+async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:str|None=None, lang:str='ja', num:int=5, debug=False ):
     # 検索結果からURL
     link = item.get('link')
-    print(f"a_fetch_html URL={link}")
+    logger.debug(f"_a_th_duckduckgo_search URL={link}")
     if not link:
         return None
     # htmlを取得して本文を取り出す
     t1 = time.time()
-    html_text,err = await a_fetch_html(link)
+    html_bytes,err = await a_fetch_html(link)
     if err:
         item['err'] = err
         return item
-    text = get_text_from_html( html_text, keywords=keyword )
+    # キーワードが含まれるか？
+    html_text = html_bytes.decode()
+    Hit = False
+    for w in keyword:
+        if w in html_text:
+            Hit=True
+    if not Hit:
+        return item
+    # htmlからテキスト抽出
+    text = get_text_from_html( html_bytes, keywords=keyword )
     t2 = time.time()
-    print( f"{link} get {t2-t1}(sec)")
+    logger.info( f"{link} get {t2-t1}(sec)")
     if not isinstance(text,str) or len(text.strip())==0:
         return None
 
     if prompt_fmt is None:
+        # 要約しないそのまま返信
         return item
 
-    # 要約
+    # 要約する
 
     # 原文を切り出し
     start_pos = 999999
@@ -192,25 +211,80 @@ async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:s
     prompt = prompt_fmt.format(text)
     digest = summarize_text( text, prompt=prompt )
     t3 = time.time()
-    print( f"{link} sum {t3-t2}(sec)")
+    logger.info( f"{link} summarize {t3-t2}(sec)")
     # snippetを更新する
     if digest:
         item['snippet'] = digest
     return item
 
-async def _a_duckduckgo_search_api( keyword, *, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
+def convert_keyword( keyword ):
+    www = []
+    if isinstance(keyword,str):
+        www = [ w.strip() for w in keyword.split(' ') if w.strip() ]
+    elif isinstance(keyword,list):
+        www = [ w.strip() for w in keyword if isinstance(w,str) ]
+    words = []
+    groups = [words]
+    after = None
+    before = None
+    for w in www:
+        if w.startswith('before:'):
+            before = w[len('before:'):]
+        elif w.startswith('after:'):
+            after = w[len('after:'):]
+        elif w == "(" or w ==")" or w.upper=="AND":
+            continue
+        elif w.upper()=="OR":
+            words = []
+            groups.append(words)
+        else:
+            words.append(w)
+    aaa = [ ' '.join(g) for g in groups if g ]
+    return aaa, after, before
+
+async def _a_duckduckgo_search_api( keyword, *, lang:str=None, num:int=10, debug=False ) ->list[dict]:
+    # google風検索条件を変換する
+    keyword_groups, after, before = convert_keyword( keyword )
+    # リージョン
+    if not isinstance(lang,str) or 'JA' in lang.upper() or 'JP' in lang.upper():
+        region = 'jp-jp'
+    else:
+        region = 'us-en'
+    #timelimitの値をYYYY-MM-DD..YYYY-MM-DD形式で、開始日と終了日を指摘することで、任意の期間の検索結果を取得できる。
+    timelimit = None
+    if after:
+        if before:
+            timelimit = after+".."+before
+        else:
+            timelimit = after+".."
+    else:
+        timelimit = ".." + before
+    logger.info(f"[DUCKDUCKGO] region:{region} input keyword:{keyword}")
+    logger.info(f"[DUCKDUCKGO] search keyword:{keyword_groups} {after}..{before}")
     # クエリ
+    group_results=[]
     with DDGS() as ddgs:
-        results = ddgs.text(
-            keywords=keyword,      # 検索ワード
-            region='jp-jp',       # リージョン 日本は"jp-jp",指定なしの場合は"wt-wt"
-            safesearch='moderate',     # セーフサーチOFF->"off",ON->"on",標準->"moderate"
-            timelimit=None,       # 期間指定 指定なし->None,過去1日->"d",過去1週間->"w",
-                                  # 過去1か月->"m",過去1年->"y"
-            max_results=num         # 取得件数
-        )
+        for grp in keyword_groups:
+            query = f"{grp} -site:youtube.com -site:facebook.com -site:instagram.com -site:twitter.com"
+            logger.info(f"[DUCKDUCKGO] group:{query} {after}..{before}")
+            results = ddgs.text(
+                keywords=query,      # 検索ワード
+                region=region,       # リージョン 日本は"jp-jp",指定なしの場合は"wt-wt"
+                safesearch='moderate',     # セーフサーチOFF->"off",ON->"on",標準->"moderate"
+                timelimit=timelimit,       # 期間指定 指定なし->None,過去1日->"d",過去1週間->"w",過去1か月->"m",過去1年->"y"
+                max_results=num         # 取得件数
+            )
+            group_results.append(results)
+    # 結合
+    join_results = []
+    maxlen = max( [len(grp) for grp in group_results])
+    for i in range(maxlen):
+        for grp in group_results:
+            if i<len(grp):
+                join_results.append(grp[i])
+    # 変換
     result_json=[]
-    for item in results:
+    for item in join_results:
         title:str = item.get('title','')
         link:str = item.get('href','')
         snippet:str = item.get('body','')
@@ -360,7 +434,7 @@ def download_from_url(url, *, directory, file_name:str=None) -> tuple[str,str]:
         return dst_filename, msg
 
     except Exception as ex:
-        traceback.print_exc()
+        logger.exception('download error')
         return None, f"ERROR: {ex}"
 
 def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
@@ -370,11 +444,11 @@ def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
         html_bytes = response.read()
         return get_text_from_html(html_bytes, as_raw=as_raw, as_html=as_html, debug=debug )
     except HTTPError as e:
-        print(f"HTTP Error: {e.code} - {e.reason}")
+        logger.error(f"HTTP Error: {e.code} - {e.reason}")
     except URLError as e:
-        print(f"URL Error: {e.reason}")
+        logger.error(f"URL Error: {e.reason}")
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logger.error(f"Unexpected error: {e}")
     except Exception as ex:
         raise ex
     finally:
@@ -398,6 +472,8 @@ def get_next_filename(directory, prefix='dump'):
     return os.path.join( directory, f"{prefix}{max_num + 1:04d}" )
 
 def cleanup_tags(elem:Elem):
+    if elem is None:
+        return
     if elem.tag == "br":
         return True
     # if elem.tag in {'a', 'button'}:
@@ -441,21 +517,25 @@ def strip_tag_text(elem:Elem) ->bool:
 
 def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None, debug=False):
     try:
+        tmpdir = os.path.join('tmp', 'htmldump')
+
+        if debug:
+            os.makedirs(tmpdir, exist_ok=True)
+            if isinstance(html_text,bytes):
+                with open( os.path.join(tmpdir,'original.html' ), 'wb') as stream:
+                    stream.write(html_text)
+            if isinstance(html_text,str):
+                with open( os.path.join(tmpdir,'original.html' ), 'w') as stream:
+                    stream.write(html_text)
+
         raw_buffer = BytesIO(html_text)
         raw_buffer.seek(0)
         parser = etree.HTMLParser(remove_comments=True)
         tree = etree.parse(raw_buffer, parser)
         root = tree.getroot()
 
-        tmpdir = os.path.join('tmp', 'htmldump')
-
-        if debug:
-            os.makedirs(tmpdir, exist_ok=True)
-            with open( os.path.join(tmpdir,'original.html' ), 'w') as stream:
-                stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
-
         time_list = [time.time()]
-        if not as_raw:
+        if not as_raw and root is not None:
             # 絶対不要なタグを削除
             etree.strip_elements(root, "script", "style", "meta", with_tail=False)
             time_list.append(time.time())  # 1
@@ -483,11 +563,14 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
 
             if debug:
                 with open(os.path.join(tmpdir,'output.html'), 'w') as stream:
-                    stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
+                    if root is not None:
+                        stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
             time_list.append(time.time())  # 6
 
         if as_html:
-            return etree.tostring(root, pretty_print=True, encoding='unicode')
+            if root is not None:
+                return etree.tostring(root, pretty_print=True, encoding='unicode')
+            return ''
 
         # raw_text = ''.join(root.itertext())
         #lines = [line.strip() for line in raw_text.splitlines()]
@@ -502,24 +585,24 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
 
         if debug or t_all > 0.1 or (keywords and not any(w in text for w in keywords)):
             if debug or t_all > 0.1:
-                print(f"Text time {t_all}sec")
+                logger.debug(f"Text time {t_all}sec")
                 for i in range(1, len(time_list)):
-                    print(f" {i} {time_list[i] - time_list[i - 1]}sec")
+                    logger.debug(f" {i} {time_list[i] - time_list[i - 1]}sec")
             bbb = "" if t_all < 1.0 else "_SLOW"
             os.makedirs(tmpdir, exist_ok=True)
             filename = os.path.join(tmpdir,'dump') #get_next_filename(dir, prefix='dump')
             with open(f'{filename}{bbb}_raw.html', 'wb') as stream:
                 stream.write(html_text)
             with open(f'{filename}{bbb}_strip.html', 'w') as stream:
-                stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
+                if root is not None:
+                    stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
             with open(f'{filename}{bbb}.txt', 'w') as stream:
                 stream.write(text)
 
         return text
 
     except Exception as ex:
-        traceback.print_exc()
-        print(f"error {ex}")
+        logger.exception('can not get text')
     return None
 
 def text_to_chunks( text:str, chunk_size:int=2000, overlap:int=100 ) ->list[str]:

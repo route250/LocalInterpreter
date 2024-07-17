@@ -5,6 +5,8 @@ import LocalInterpreter.utils.trends as trends
 
 def test_today_trends_search():
     text:str = trends.today_searches_result()
+    print()
+    print("==========================")
     print(f"{text}")
 
 def main():

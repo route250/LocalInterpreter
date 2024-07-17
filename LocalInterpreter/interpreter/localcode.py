@@ -12,6 +12,9 @@ import glob
 
 from LocalInterpreter.utils import web
 
+import logging
+logger = logging.getLogger('LocalCode')
+
 TIMEFILE='.lastupdatetime'
 
 def escape_control_chars(text):
@@ -93,7 +96,7 @@ class CodeRepo:
         self.session_list:dict[str,CodeSession] = {}
 
     def _th_setup_scripts(self):
-        print(f"[Repo]setup scripts {self.word_dir_top}")
+        logger.info(f"[Repo]setup scripts {self.word_dir_top}")
         for name,content in script_map.items():
             scrpath = os.path.join( self.word_dir_top, name)
             write_to_textfile( scrpath, content, 0o744 )
@@ -121,7 +124,7 @@ class CodeRepo:
         for dirpath in glob.glob( os.path.join(self.word_dir_top,'*')):
             tm:float = read_time(dirpath)
             if isinstance(tm,float) and tm>0:
-                print(f"[Repo]reload {dirpath}")
+                logger.info(f"[Repo]reload {dirpath}")
                 sessionId:str = os.path.basename(dirpath)
                 session:CodeSession = CodeSession( self, sessionId, dirpath, tm )
                 self.session_list[sessionId] = session
@@ -131,7 +134,7 @@ class CodeRepo:
             await asyncio.sleep(self.timer_inverval)
             dellist:list[CodeSession] = []
             async with self.lock:
-                # print( "[Repo] timer ")
+                logger.debug( "[Repo] timer ")
                 for sessionId,session in self.session_list.items():
                     t = time.time() - session.lasttime
                     if t>self.session_live_sec:
@@ -153,12 +156,12 @@ class CodeRepo:
             await loop.run_in_executor( self.pool, self._th_setup_scripts )
             # python仮想環境を構築
             scrpath:str = await self.get_script( SCR_BUILD )
-            print(f"[Repo]exec {scrpath}")
+            logger.debug(f"[Repo]exec {scrpath}")
             proc:Process = await create_subprocess_exec( scrpath, stdout=PIPE, stderr=DEVNULL, cwd=self.word_dir_top )
             stdout,stderr = await proc.communicate()
             code:int = proc.returncode
-            print(f"{stdout.decode()}")
-            print(f"exit:{code}")
+            logger.debug(f"{stdout.decode()}")
+            logger.debug(f"exit:{code}")
             # セッションディレクトリをリロード
             await loop.run_in_executor( self.pool, self._th_reload_session )
             # タイマー開始
@@ -181,7 +184,7 @@ class CodeRepo:
                 # 無いから新規作成
                 loop = asyncio.get_running_loop()
                 new_id, cwd = await loop.run_in_executor( self.pool, self._th_build_new_directory )
-                print(f"[Repo]new session {new_id} {cwd}")
+                logger.info(f"[Repo]new session {new_id} {cwd}")
                 session:CodeSession = CodeSession( self, new_id, cwd )
                 self.session_list[new_id] = session
             await session.start()
@@ -208,7 +211,7 @@ class CodeSession:
             if isinstance(self.process,Process):
                 return
 
-            print(f"[Session:{self.sessionId}] start")
+            logger.info(f"[Session:{self.sessionId}] start")
             scrpath:str = await self.parent.get_start_script()
             try:
                 self.process:Process = await create_subprocess_exec( scrpath, stdin=PIPE, stdout=PIPE, stderr=DEVNULL, cwd=self.cwd)
@@ -216,7 +219,7 @@ class CodeSession:
                 await self.send_command( f"sys.ps2='\\n{self.ps2}\\n'" )
                 await self.send_command( f"sys.ps1='\\n{self.ps1}\\n'" )
                 out = await self.get_output()
-                print(f"[OUT]{out}")
+                logger.debug(f"[OUT]{out}")
                 self.lasttime:float = time.time()
             except:
                 await self.stop()
@@ -240,7 +243,7 @@ class CodeSession:
                 break
             line = (await self.process.stdout.readline()).decode()
             self.lasttime:float = time.time()
-            print(f"[dbg]{escape_control_chars(line)}")
+            logger.debug(f"[dbg]{escape_control_chars(line)}")
             sline=line.strip()
             if sline == self.ps2:
                 line='...'
@@ -280,13 +283,13 @@ class CodeSession:
             self.process = None
         # プロセスを終了
         if process is not None:
-            print(f"[Session:{self.sessionId}] stop")
+            logger.info(f"[Session:{self.sessionId}] stop")
             loop = asyncio.get_running_loop()
             await loop.run_in_executor( self.parent.pool, self._th_stop_1, process )
 
     async def cleanup(self):
         await self.stop()
         if os.path.isdir( self.cwd ):
-            print(f"[Session:{self.sessionId}] cleanup")
+            logger.info(f"[Session:{self.sessionId}] cleanup")
             loop = asyncio.get_running_loop()
             await loop.run_in_executor( self.parent.pool, shutil.rmtree, self.cwd )

@@ -5,6 +5,8 @@ import asyncio
 from quart import Quart, request, Response, jsonify
 sys.path.append(os.getcwd())
 from LocalInterpreter.service.schema import ServiceSchema, BaseService, ServiceParam, ServiceResponse
+import logging
+logger = logging.getLogger('LocalSrv')
 
 class QuartServiceBase(BaseService):
     def __init__(self,method):
@@ -27,11 +29,11 @@ class QuartServiceBase(BaseService):
             if data_json:
                 return data_json
         except:
-            traceback.print_exc()
+            logger.exception('invalid requests')
         return {}
 
     async def service(self,subpath):
-        print( f"[QServ] path:{subpath} baseurl:{request.base_url}")
+        logger.info( f"[QServ] path:{subpath} baseurl:{request.base_url}")
         data_json = {}
         if self.method == "post":
             data_json = await self.request_get_json()
@@ -67,12 +69,12 @@ class QuartServerBase(Quart,ServiceSchema):
 
     async def _x_before_serving(self):
         # サーバーがリクエストを受け付ける前に実行される処理
-        print("Server is starting up, executing before_serving tasks")
+        logger.info("Server is starting up, executing before_serving tasks")
         for service in self._service_ref.values():
             await service.before_serving()
 
     async def _serve(self,subpath):
-        print( f"[Serv] path:{subpath} baseurl:{request.base_url}")
+        logger.info( f"[Serv] path:{subpath} baseurl:{request.base_url}")
         key:str = f"{request.method.upper()}!!/{subpath}"
         service:QuartServiceBase = self._service_ref.get(key)
         if service:

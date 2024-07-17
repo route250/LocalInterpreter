@@ -1,6 +1,9 @@
 import re
 import json
 
+import logging
+logger = logging.getLogger('JsonParser')
+
 PRE_KEY=1
 IN_KEY=2
 AFTER_KEY=3
@@ -47,7 +50,7 @@ class JsonStreamParser:
                 self._key = len(self._obj)
             else:
                 if self._key+1 != len(self._obj):
-                   print(f"invalid index len(obj):{len(self._obj)} key:{self._key}")
+                   logger.error(f"invalid index len(obj):{len(self._obj)} key:{self._key}")
                 self._key = len(self._obj)
             self._obj.append(new_obj)
         else:

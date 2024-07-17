@@ -25,8 +25,8 @@ def test_get_text_from_url():
     url = 'https://cat-press.com/cat-news/sara-ten-akubi'
     url = 'https://lsdblog.seesaa.net/article/503246391.html'
     url = 'https://wpb.shueisha.co.jp/news/politics/2024/06/14/123512/'
-    #url = 'https://wpb.shueisha.co.jp/news/politics/2024/06/07/123479/'
-    url = 'https://nihon.matsu.net/nf_folder/nf_mametisiki/nf_animal/nf_animal_tubame.html'
+    url = 'https://wpb.shueisha.co.jp/news/politics/2024/06/07/123479/'
+    # url = 'https://nihon.matsu.net/nf_folder/nf_mametisiki/nf_animal/nf_animal_tubame.html'
     print( "-----------------------------")
     text = web.get_text_from_url(url)
     print( "-----------------------------")

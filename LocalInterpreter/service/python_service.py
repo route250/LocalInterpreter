@@ -4,6 +4,9 @@ from LocalInterpreter.service.local_service import QuartServiceBase, ServicePara
 from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
 import LocalInterpreter.utils.web as web
 
+import logging
+logger = logging.getLogger('PythonSrv')
+
 class PythonService(QuartServiceBase):
     def __init__(self, *, directory:str=None):
         super().__init__('post')
@@ -66,6 +69,7 @@ class PythonService(QuartServiceBase):
             })
 
         except Exception as e:
+            logger.exception('execution error')
             return jsonify({'error': str(e)}), 500
 
     def call(self,args):

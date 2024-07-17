@@ -3,6 +3,9 @@ import pandas as pd
 from pytrends.request import TrendReq
 from LocalInterpreter.utils import web
 
+import logging
+logger = logging.getLogger('TrendsUtil')
+
 def uniq_words( words:list[str] ) ->list[str]:
     # 部分文字列を排除
     result = []
@@ -116,16 +119,16 @@ def suggestions( keyword ) ->list[str]:
 
 
 def today_searches_result( *, lang='ja', num=10, debug=False):
-    word_lsit:list[str] = today_searches()
-    search_keywords = " OR ".join([ f"\"{w}\"" for w in word_lsit])
-    yesterday = datetime.now() - timedelta(days=1)
+    word_list:list[str] = today_searches()
+    search_keywords = " OR ".join([ f"\"{w}\"" for w in word_list])
+    yesterday = datetime.now() - timedelta(days=3)
     yesterday_str:str = yesterday.strftime("%Y-%m-%d")
     query = f"( {search_keywords} ) after:{yesterday_str}"
     result_all_list:list[dict] = web.duckduckgo_search_json( query, lang=lang, num=20, debug=debug)
     # {'title':title, 'link':link, 'snippet': snippet }
 
     counter = {}
-    for hit_word in word_lsit:
+    for hit_word in word_list:
         counter[hit_word] = 0
 
     result_json = []
@@ -158,8 +161,9 @@ def today_searches_result( *, lang='ja', num=10, debug=False):
                 result_json.append(item)
                 uniq[link] = 0
 
-    result_text = f"# Today's search keywords: {' '.join(word_lsit)}\n\n"
-    result_text += "# Search result:\n\n"
+    word_lines = '\n'.join( [ f" - {w}" for w in word_list ])
+    result_text = f"# Today's popular search keywords:\n{word_lines}\n\n"
+    result_text += "# Search results for today's popular search keywords:\n\n"
     if isinstance(result_json,(list,tuple)):
         for i,item in enumerate(result_json):
             err:str = item.get('error')

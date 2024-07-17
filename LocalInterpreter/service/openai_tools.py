@@ -12,6 +12,9 @@ from LocalInterpreter.service.schema import ServiceSchema, BaseService
 from LocalInterpreter.service.local_service import QuartServiceBase
 from LocalInterpreter.service.web_service import WebGetService, WebSearchService, WebTrendService
 
+import logging
+logger = logging.getLogger('OpenAIsrv')
+
 class OpenAITools(ServiceSchema):
 
     def __init__(self):
@@ -36,7 +39,7 @@ class OpenAITools(ServiceSchema):
                     return service
 
     def tool_run( self, call_id, tool_name, tool_args ):
-        print(f"[TOOL_RUN]{call_id} {tool_name} {tool_args}")
+        logger.info(f"[TOOL_RUN]{call_id} {tool_name} {tool_args}")
         service = self.get_service( tool_name )
         if not service:
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: tool not found."}
@@ -48,7 +51,7 @@ class OpenAITools(ServiceSchema):
             ret = service.call( args )
             return {'role':'tool', 'tool_call_id':call_id, 'content':ret }
         except Exception as ex:
-            traceback.print_exc()
+            logger.exception('error on tool')
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: {ex.__class__.__name__}: {ex}"}
         
     def tool_call( self, chatcomp:ChatCompletion ) ->list[dict]:
@@ -73,7 +76,7 @@ class OpenAITools(ServiceSchema):
                     args:dict = json.loads(func.arguments)
                     service:QuartServiceBase = self.get_service( fname )
                     if service:
-                        print(f"id:{fid} Func:{service.name} args:{args}")
+                        logger.info(f"id:{fid} Func:{service.name} args:{args}")
                         tools.append( (fid, service, args) )
                         continue
                 except:
@@ -106,7 +109,7 @@ class OpenAITools(ServiceSchema):
 #     top.add_service( z )
 #     j:dict = top.to_tools()
 #     xx:str = json.dumps(j, ensure_ascii=False, indent=2 )
-#     print(xx)
+#     logger.info(xx)
 
 # if __name__ == "__main__":
 #     test_to_json()

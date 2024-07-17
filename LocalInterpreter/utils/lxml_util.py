@@ -6,6 +6,9 @@ import lxml
 from lxml import etree
 from lxml.etree import _ElementTree as ETree, _Element as Elem
 
+import logging
+logger = logging.getLogger('LxmlUtil')
+
 def esc( text:str ) ->str:
     if text is None:
         return "{None}"
@@ -372,6 +375,8 @@ md_post_map = {
     'tr': "\n",
 }
 def to_text(elem:Elem):
+    if elem is None:
+        return ''
     try:
         # if elem.tag in md_h_map:
         #     text = child_to_text("",elem)

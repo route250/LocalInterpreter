@@ -13,6 +13,9 @@ import tiktoken
 
 from .JsonStreamParser import JsonStreamParser
 
+import logging
+logger = logging.getLogger('OpenAIutil')
+
 def setup_openai_api():
     """
     OpenAI APIをセットアップする関数です。
@@ -22,7 +25,7 @@ def setup_openai_api():
     load_dotenv(dotenv_path)
     
     api_key = os.getenv("OPENAI_API_KEY")
-    print(f"OPENAI_API_KEY={api_key[:5]}***{api_key[-3:]}")
+    logger.info(f"OPENAI_API_KEY={api_key[:5]}***{api_key[-3:]}")
 
 def trim_json( data ):
     if isinstance( data, (list,tuple) ):
@@ -55,7 +58,7 @@ def is_japanese_text( text:str ):
     return ret
 
 def summarize_web_content( text:str, *, length:int=None, debug=False ) ->str:
-    print(f"[SUMMARIZE] len:{len(text)}/{length} {text[:20]}")
+    logger.info(f"[SUMMARIZE] len:{len(text)}/{length} {text[:20]}")
     openai_llm_model = 'gpt-3.5-turbo'
 
     # テキストが日本語かどうかを確認
@@ -98,9 +101,9 @@ def summarize_text( text:str, *, prompt:str, model:str='gpt-3.5-turbo'):
             else:
                 return text
         except APITimeoutError as ex:
-            print(f"[SUMMARIZE#{run}]ERROR OpenAI {ex.__class__.__name__} {ex}")
+            logger.error(f"[SUMMARIZE#{run}]ERROR OpenAI {ex.__class__.__name__} {ex}")
         except Exception as ex:
-            print(f"[SUMMARIZE#{run}]ERROR OpenAI {ex.__class__.__name__} {ex}")
+            logger.error(f"[SUMMARIZE#{run}]ERROR OpenAI {ex.__class__.__name__} {ex}")
             pass
 
     return text
@@ -142,21 +145,21 @@ def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_toke
     for m in new_hists:
         x=m.get("tool_calls",[])
         if x:
-            print(f"[summarize] tool_calls {x}")
+            logger.info(f"[summarize] tool_calls {x}")
             for t in x:
                 cid = t.get("id")
                 if cid:
-                    print(f"[summarize] cid {cid}")
+                    logger.info(f"[summarize] cid {cid}")
                     call_list[cid]=1
     for i in range( len(new_hists)-1,-1,-1):
         m = new_hists[i]
         xid = m.get("tool_call_id") # 実行結果のid
         if xid:
             if call_list.get(xid) is None:
-                print(f"[summarize] {xid} remove ")
+                logger.info(f"[summarize] {xid} remove ")
                 new_hists.pop(i)
             else:
-                print(f"[summarize] {xid} keep ")
+                logger.info(f"[summarize] {xid} keep ")
 
     if not old_hists:
         return new_hists
@@ -366,7 +369,7 @@ class OpenAI_stream_iterator:
                         for id, path, new_value in self.json_parser.put( delta_content, end=in_content==2 ):
                             if JsonStreamParser.ERR == id:
                                 self.json_parser = None
-                                print(f"ERROR: buffer: {path} {new_value}")
+                                logger.error(f"ERROR: buffer: {path} {new_value}")
                                 break
                             pos = self.json_buffers.get(path)
                             if isinstance(pos,int):
@@ -418,7 +421,7 @@ class OpenAI_stream_iterator:
         except Exception as ex:
             self.eof=True
             self.json_parser = None
-            traceback.print_exc()
+            logger.exception('stream parser error')
             raise ex
 
     def get_value(self, path):

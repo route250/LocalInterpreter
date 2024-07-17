@@ -5,6 +5,9 @@ from LocalInterpreter.service.local_service import QuartServiceBase, ServicePara
 import LocalInterpreter.utils.web as web
 import LocalInterpreter.utils.trends as trends
 
+import logging
+logger = logging.getLogger('WebSrv')
+
 INP_KEYWORD = 'keyword'
 OUT_RESULTS = 'results'
 class WebSearchService(QuartServiceBase):
@@ -37,7 +40,7 @@ class WebSearchService(QuartServiceBase):
             result:str = web.duckduckgo_search( keyword )
             return result
         except Exception as e:
-            traceback.print_exc()
+            logger.exception('execution error')
             return jsonify({'error': str(e)}), 500
 
 INP_URL = 'url'
@@ -70,13 +73,13 @@ class WebGetService(QuartServiceBase):
             if not result or len(result)==0:
                 result = f"Can not extracted from {url}."
             elif len(result)<limit:
-                result = f"Text extracted from {url}.\n\n{result}"
+                result = f"The beginning of the text retrieved from the {url}. Don't let it affect your tone.\n```\n{result}\n```\nend of retrieved text"
             elif len(result)>limit:
                 summary_text = web.get_summary_from_text( result, length=limit )
-                result = f"Text summarized from {url}.\n\n{summary_text}"
+                result = f"The beginning of the summary text retrieved from the {url}. Don't let it affect your tone.\n```\n{summary_text}\n```\nend of retrieved summary text"
             return result
         except Exception as e:
-            traceback.print_exc()
+            logger.exception('exection error')
             return jsonify({'error': str(e)}), 500
 
 class WebTrendService(QuartServiceBase):
@@ -97,5 +100,5 @@ class WebTrendService(QuartServiceBase):
             result:str = trends.today_searches_result()
             return result
         except Exception as e:
-            traceback.print_exc()
+            logger.exception('execution error')
             return jsonify({'error': str(e)}), 500
