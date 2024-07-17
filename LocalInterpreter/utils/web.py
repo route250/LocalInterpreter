@@ -79,7 +79,13 @@ async def a_fetch_html(url:str) ->bytes:
         return b'',f'{ex}'
     except httpx.ReadTimeout as ex:
         return b'',f'{ex}'
-    except ssl.SSLCertVerificationError as ex:
+    except httpx.TooManyRedirects as ex:
+        logger.error(f"{ex.__class__.__name__} URL:{url}")
+        return b'',f'{ex}'
+    except httpx.HTTPError as ex: # httpxの例外はここに集約される
+        logger.error(f"{ex.__class__.__name__} URL:{url}")
+        return b'',f'{ex}'
+    except ssl.SSLError as ex:
         logger.error(f"{ex.__class__.__name__} URL:{url}")
         return b'',f"{ex.__class__.__name__} URL:{url}"
     except Exception as ex:
