@@ -27,6 +27,7 @@ def test_get_text_from_url():
     url = 'https://wpb.shueisha.co.jp/news/politics/2024/06/14/123512/'
     url = 'https://wpb.shueisha.co.jp/news/politics/2024/06/07/123479/'
     # url = 'https://nihon.matsu.net/nf_folder/nf_mametisiki/nf_animal/nf_animal_tubame.html'
+    url = 'https://tenki.jp/forecast/6/30/6200/27210/1hour.html'
     print( "-----------------------------")
     text = web.get_text_from_url(url)
     print( "-----------------------------")
@@ -35,6 +36,27 @@ def test_get_text_from_url():
     summary = web.get_summary_from_text(text, context_size=500, overlap=10)
     print( "-----------------------------")
     print(summary)
+
+def test_get_text_from_testdata():
+    input_dir = os.path.join( 'testData','web' )
+    output_dir = os.path.join( 'tmp', 'web' )
+    os.makedirs( output_dir, exist_ok=True )
+    files = [file for file in os.listdir( input_dir ) if file.startswith('case') and file.endswith('.html')]
+    for file in files:
+        case_name,_ = os.path.splitext(os.path.basename(file))
+        print("-----------------------------------------------------")
+        print(case_name)
+        print("-----------------------------------------------------")
+    
+        input_file = os.path.join( input_dir, file )
+        with open( input_file, 'rb') as stream:
+            html_bytes = stream.read()
+        #
+        text = web.get_text_from_html( html_bytes )
+        #
+        output_file=os.path.join( output_dir, f"{case_name}.txt" )
+        with open( output_file, 'w' ) as stream:
+            stream.write(text)
 
 def test_decode_and_parse_url():
     # Example usage
@@ -56,4 +78,4 @@ def main():
         print(f"## content\n{content}")
 
 if __name__ == "__main__":
-    test_get_text_from_url()
+    test_get_text_from_testdata()

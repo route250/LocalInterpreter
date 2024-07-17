@@ -105,6 +105,11 @@ def xs( text:str|None ) ->str:
         return text
     return None
 
+def xs_len( text:str|None ) ->str:
+    if isinstance(text,str):
+        return len(text)
+    return 0
+
 def xs_is_empty( text:str|None ) ->bool:
     if isinstance(text,str) and len(text)>0:
         return False
@@ -356,9 +361,10 @@ md_pre_map = {
     'h2': "\n## ",
     'h3': "\n### ",
     'h4': "\n#### ",
-    'table': "\n",
-    'td': "|",
-    'th': "|",
+    'table': "\n<table>\n",
+    "tr": "\n<tr>\n",
+    'td': "<td>",
+    'th': "<th>",
 }
 md_post_map = {
     'br': "\n",
@@ -371,8 +377,10 @@ md_post_map = {
     'h2': "\n",
     'h3': "\n",
     'h4': "\n",
-    'table': "\n",
-    'tr': "\n",
+    'table': "\n</table>\n",
+    'tr': "\n</tr>\n",
+    "td": "</td>",
+    "th": "</th>"
 }
 def to_text(elem:Elem):
     if elem is None:
@@ -383,6 +391,15 @@ def to_text(elem:Elem):
         #     return md_h_map[elem.tag]+trimA(text)+"\n"
 
         pre:str = md_pre_map.get(elem.tag)
+        if elem.tag=='th' or elem.tag=='td':
+            pre="<"+elem.tag
+            cs = elem.get('colspan')
+            if cs:
+                pre += f" colspan=\"{cs}\""
+            rs = elem.get('rowspan')
+            if rs:
+                pre += f" colspan=\"{rs}\""
+            pre+=">"
         text = xs_strip( child_to_text("",elem) )
         if elem.tag == 'a':
             href:str = elem.get('href')
@@ -401,3 +418,20 @@ def child_to_text( text:str, elem:Elem ) ->str:
         text = xs_join(text,to_text(child))
         text = xs_join(text, xs_trimA(child.tail) )
     return text
+
+def xs_count( elem:Elem, limit:int, n:int=0 ) ->int:
+    n += xs_len( xs_trimA(elem.text) )
+    if n<limit:
+        for child in elem:
+            n += xs_count( child, limit, n )
+            if n>limit:
+                return n
+            n += xs_len( xs_trimA(child.tail) )
+            if n>limit:
+                return n
+    return n
+
+def count( elem:Elem, limit:int ) ->bool:
+    if xs_count( elem, limit, 0 )>limit:
+        return True
+    return False

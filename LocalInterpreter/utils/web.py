@@ -538,7 +538,14 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
 
         raw_buffer = BytesIO(html_text)
         raw_buffer.seek(0)
-        parser = etree.HTMLParser(remove_comments=True)
+        enc='UTF-8'
+        try:
+            head_text = raw_buffer.read(1000).decode('ISO-8859-1').lower()
+            if "shift_jis" in head_text or "shift-jis" in head_text:
+                enc="cp932"
+        except:
+            pass
+        parser = etree.HTMLParser(encoding=enc,remove_comments=True)
         tree = etree.parse(raw_buffer, parser)
         root = tree.getroot()
 
@@ -548,7 +555,7 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
             etree.strip_elements(root, "script", "style", "meta", with_tail=False)
             time_list.append(time.time())  # 1
             # もしarticleタグmainタグが見つかれば、それ以外を消す
-            articles = root.xpath('//article|//main')
+            articles = [ elem for elem in root.xpath('//article|//main') if Xu.count(elem,100) ]
             if articles:
                 body = root.find('body')
                 body.clear()
