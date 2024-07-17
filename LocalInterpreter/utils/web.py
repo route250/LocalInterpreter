@@ -9,8 +9,10 @@ from urllib import request
 from urllib.error import URLError, HTTPError
 import mimetypes
 import asyncio
+import ssl
 import httpx
 from httpx import Response
+
 from io import BytesIO
 
 from urllib.parse import urlparse, parse_qs, unquote
@@ -77,6 +79,12 @@ async def a_fetch_html(url:str) ->bytes:
         return b'',f'{ex}'
     except httpx.ReadTimeout as ex:
         return b'',f'{ex}'
+    except ssl.SSLCertVerificationError as ex:
+        logger.error(f"{ex.__class__.__name__} URL:{url}")
+        return b'',f"{ex.__class__.__name__} URL:{url}"
+    except Exception as ex:
+        logger.exception(f"can not get from {url}")
+        raise ex
 
 def duckduckgo_search( keyword, *, messages:list[dict]=None, lang:str='ja', num:int=5, debug=False ) ->str:
     result_json:list[dict] = duckduckgo_search_json( keyword, messages=messages, lang=lang, num=num, debug=debug)
@@ -177,13 +185,13 @@ async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:s
         item['err'] = err
         return item
     # キーワードが含まれるか？
-    html_text = html_bytes.decode()
-    Hit = False
-    for w in keyword:
-        if w in html_text:
-            Hit=True
-    if not Hit:
-        return item
+    # html_text = html_bytes.decode()
+    # Hit = False
+    # for w in keyword:
+    #     if w in html_text:
+    #         Hit=True
+    # if not Hit:
+    #     return item
     # htmlからテキスト抽出
     text = get_text_from_html( html_bytes, keywords=keyword )
     t2 = time.time()
@@ -257,7 +265,7 @@ async def _a_duckduckgo_search_api( keyword, *, lang:str=None, num:int=10, debug
             timelimit = after+".."+before
         else:
             timelimit = after+".."
-    else:
+    elif before:
         timelimit = ".." + before
     logger.info(f"[DUCKDUCKGO] region:{region} input keyword:{keyword}")
     logger.info(f"[DUCKDUCKGO] search keyword:{keyword_groups} {after}..{before}")
