@@ -16,6 +16,8 @@ from .JsonStreamParser import JsonStreamParser
 import logging
 logger = logging.getLogger('OpenAIutil')
 
+OPENAI_DEFAULT_MODEL='gpt-4o-mini'
+
 def setup_openai_api():
     """
     OpenAI APIをセットアップする関数です。
@@ -57,9 +59,8 @@ def is_japanese_text( text:str ):
     ret = all(ord(char) < 128 for char in text) == False
     return ret
 
-def summarize_web_content( text:str, *, length:int=None, debug=False ) ->str:
+def summarize_web_content( text:str, *, length:int=None, model = OPENAI_DEFAULT_MODEL, debug=False ) ->str:
     logger.info(f"[SUMMARIZE] len:{len(text)}/{length} {text[:20]}")
-    openai_llm_model = 'gpt-3.5-turbo'
 
     # テキストが日本語かどうかを確認
     is_japanese = is_japanese_text( text )
@@ -76,11 +77,11 @@ def summarize_web_content( text:str, *, length:int=None, debug=False ) ->str:
         else:
             prompt = f"Summarize the following text:\n\n{text}\n\nSummary:"
 
-    return summarize_text( text, prompt=prompt, model=openai_llm_model )
+    return summarize_text( text, prompt=prompt, model=model )
 
-def summarize_text( text:str, *, prompt:str, model:str='gpt-3.5-turbo'):
+def summarize_text( text:str, *, prompt:str, model:str=OPENAI_DEFAULT_MODEL):
 
-    openai_llm_model = model if model else 'gpt-3.5-turbo'
+    openai_llm_model = model if model else OPENAI_DEFAULT_MODEL
     openai_timeout:Timeout = Timeout(180.0, connect=5.0, read=15.0)
     openai_max_retries=3
 
