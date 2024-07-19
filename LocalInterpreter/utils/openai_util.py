@@ -11,12 +11,25 @@ from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall,ChatComp
 from openai import Stream
 import tiktoken
 
+from .logger_util import ApiLog
 from .JsonStreamParser import JsonStreamParser
 
 import logging
 logger = logging.getLogger('OpenAIutil')
 
 OPENAI_DEFAULT_MODEL='gpt-4o-mini'
+
+def to_openai_llm_model( model:str|None=None ) ->str:
+    if not isinstance(model,str) or len(model)==0:
+        return OPENAI_DEFAULT_MODEL
+    return model
+
+def get_max_input_token( model:str|None ) ->int:
+    model = to_openai_llm_model(model)
+    if model.startswith('gpt-4'):
+        return 128*1024
+    if model.startswith('gpt-3.5'):
+        return 16*1024
 
 def setup_openai_api():
     """
@@ -46,12 +59,12 @@ def trim_json( data ):
         # データがリスト、タプル、辞書でない場合はそのまま返す
         return data
 
-def count_token( text, model:str='gpt-3.5' ) ->int:
-    enc = tiktoken.encoding_for_model( model )
+def count_token( text, model:str=None ) ->int:
+    enc = tiktoken.encoding_for_model( to_openai_llm_model(model) )
     tokens = enc.encode(text)
     return len(tokens)
 
-def count_message_token( m:dict, model:str='gpt-3.5' ) ->int:
+def count_message_token( m:dict, model:str=None ) ->int:
     return count_token( json.dumps(m,ensure_ascii=False), model=model )
 
 def is_japanese_text( text:str ):
@@ -59,7 +72,7 @@ def is_japanese_text( text:str ):
     ret = all(ord(char) < 128 for char in text) == False
     return ret
 
-def summarize_web_content( text:str, *, length:int=None, model = OPENAI_DEFAULT_MODEL, debug=False ) ->str:
+def summarize_web_content( text:str, *, length:int=None, model:str=None, debug=False ) ->str:
     logger.info(f"[SUMMARIZE] len:{len(text)}/{length} {text[:20]}")
 
     # テキストが日本語かどうかを確認
@@ -77,11 +90,11 @@ def summarize_web_content( text:str, *, length:int=None, model = OPENAI_DEFAULT_
         else:
             prompt = f"Summarize the following text:\n\n{text}\n\nSummary:"
 
-    return summarize_text( text, prompt=prompt, model=model )
+    return summarize_text( text, prompt=prompt,input=text, model=model )
 
-def summarize_text( text:str, *, prompt:str, model:str=OPENAI_DEFAULT_MODEL):
+def summarize_text( text:str, *, prompt:str, model:str=None):
 
-    openai_llm_model = model if model else OPENAI_DEFAULT_MODEL
+    openai_llm_model = to_openai_llm_model(model)
     openai_timeout:Timeout = Timeout(180.0, connect=5.0, read=15.0)
     openai_max_retries=3
 
@@ -90,12 +103,17 @@ def summarize_text( text:str, *, prompt:str, model:str=OPENAI_DEFAULT_MODEL):
     ]
     for run in range(openai_max_retries):
         try:
-            client:OpenAI = OpenAI(timeout=openai_timeout,max_retries=1)
-            response = client.chat.completions.create(
-                    messages=request_messages,
-                    model=openai_llm_model,
-                    temperature=0,
-            )
+            try:
+                client:OpenAI = OpenAI(timeout=openai_timeout,max_retries=1)
+                response = client.chat.completions.create(
+                        messages=request_messages,
+                        model=openai_llm_model,
+                        temperature=0,
+                )
+                ApiLog.log( request_messages, response )
+            except Exception as ex:
+                ApiLog.log( request_messages, ex )
+                raise ex
             summary = response.choices[0].message.content.strip()
             if len(summary)<len(text):
                 return summary
@@ -112,10 +130,13 @@ def summarize_text( text:str, *, prompt:str, model:str=OPENAI_DEFAULT_MODEL):
 KEY_SUMMARY_START="---Start conversation summary:"
 KEY_SUMMARY_END="---End of conversation summary---"
 
-def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_tokens:int=8000, summary_tokens:int=2000, keep_tokens:int=1000, keep_num:int=10, model:str='gtp-3.5-turbo' ):
+def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_tokens:int=8000, summary_tokens:int=2000, keep_tokens:int=1000, keep_num:int=10, model:str=None ):
+
+    model = to_openai_llm_model(model)
+
     n_prompt = 0
     for m in prompts:
-        n_prompt += count_message_token(m)
+        n_prompt += count_message_token(m,model=model)
 
     old_hists:list[dict] = [ m for m in messages ]
     new_hists:list[dict] = []
@@ -123,7 +144,7 @@ def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_toke
     # 直近の会話
     n_keep = 0
     while len(old_hists)>0:
-        tk = count_message_token( old_hists[-1] )
+        tk = count_message_token( old_hists[-1], model=model )
         if len(new_hists)>=keep_num and (n_keep+tk)>keep_tokens:
             break
         m = old_hists.pop()
@@ -134,7 +155,7 @@ def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_toke
     target = max_tokens - n_prompt - summary_tokens - n_keep
     n_hists = 0
     while len(old_hists)>0:
-        tk = count_message_token( old_hists[-1] )
+        tk = count_message_token( old_hists[-1],model=model )
         if (n_hists+tk)>target:
             break
         m = old_hists.pop()
@@ -188,7 +209,7 @@ def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_toke
         return new_hists
 
     for i in range(2):
-        tk = count_message_token( text )
+        tk = count_message_token( text, model=model)
         if tk < target:
             break
 
@@ -261,7 +282,9 @@ class OpenAI_stream_iterator:
             self.stream = iter(buffer)
         elif stream:
             self.stream = stream
-            if savefile:
+            if isinstance(savefile,list):
+                self.savebuffer = savefile
+            elif savefile:
                 self.savefile = savefile
                 self.savebuffer = []
         else:

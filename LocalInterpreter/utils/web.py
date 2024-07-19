@@ -22,7 +22,7 @@ from lxml.etree import _ElementTree as ETree, _Element as Elem
 from googleapiclient.discovery import build, Resource, HttpError
 from duckduckgo_search import DDGS
 
-from LocalInterpreter.utils.openai_util import count_token, summarize_web_content, summarize_text
+from LocalInterpreter.utils.openai_util import to_openai_llm_model, get_max_input_token, count_token, summarize_web_content, summarize_text
 import LocalInterpreter.utils.lxml_util as Xu
 
 import logging
@@ -452,6 +452,7 @@ def download_from_url(url, *, directory, file_name:str=None) -> tuple[str,str]:
         return None, f"ERROR: {ex}"
 
 def get_text_from_url(url, *, as_raw=False, as_html=False, debug=False):
+    """urlからhtmlをget"""
     response = None
     try:
         response = request.urlopen(url)
@@ -529,31 +530,26 @@ def strip_tag_text(elem:Elem) ->bool:
             return True
     return False
 
-def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None, debug=False):
+def get_text_from_html(html_data:str|bytes, *, as_raw=False, as_html=False, keywords=None, debug=False):
     try:
         tmpdir = os.path.join('tmp', 'htmldump')
 
         if debug:
             os.makedirs(tmpdir, exist_ok=True)
-            if isinstance(html_text,bytes):
-                with open( os.path.join(tmpdir,'original.html' ), 'wb') as stream:
-                    stream.write(html_text)
-            if isinstance(html_text,str):
-                with open( os.path.join(tmpdir,'original.html' ), 'w') as stream:
-                    stream.write(html_text)
+            mode = 'w' if isinstance(html_data,str) else 'wb'
+            with open( os.path.join(tmpdir,'original.html' ), mode ) as stream:
+                stream.write(html_data)
 
-        raw_buffer = BytesIO(html_text)
-        raw_buffer.seek(0)
-        enc='UTF-8'
-        try:
-            head_text = raw_buffer.read(1000).decode('ISO-8859-1').lower()
-            if "shift_jis" in head_text or "shift-jis" in head_text:
-                enc="cp932"
-        except:
-            pass
-        parser = etree.HTMLParser(encoding=enc,remove_comments=True)
-        tree = etree.parse(raw_buffer, parser)
-        root = tree.getroot()
+        if isinstance(html_data,str):
+            parser = etree.HTMLParser(remove_comments=True)
+            tree = etree.parse(raw_buffer, parser)
+            root = tree.getroot()
+        else:
+            raw_buffer = BytesIO(html_data)
+            raw_buffer.seek(0)
+            parser = etree.HTMLParser(remove_comments=True)
+            tree = etree.parse(raw_buffer, parser)
+            root = tree.getroot()
 
         time_list = [time.time()]
         if not as_raw and root is not None:
@@ -612,8 +608,9 @@ def get_text_from_html(html_text, *, as_raw=False, as_html=False, keywords=None,
             bbb = "" if t_all < 1.0 else "_SLOW"
             os.makedirs(tmpdir, exist_ok=True)
             filename = os.path.join(tmpdir,'dump') #get_next_filename(dir, prefix='dump')
-            with open(f'{filename}{bbb}_raw.html', 'wb') as stream:
-                stream.write(html_text)
+            mode = 'w' if isinstance(html_data,str) else 'wb'
+            with open(f'{filename}{bbb}_raw.html', mode) as stream:
+                stream.write(html_data)                
             with open(f'{filename}{bbb}_strip.html', 'w') as stream:
                 if root is not None:
                     stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
@@ -670,13 +667,19 @@ def simple_text_to_chunks( text, chunk_size=2000, overlap=100 ):
         start = end - overlap
     return chunks
 
-def get_summary_from_text( text,length:int=1024, *, context_size:int=14000, overlap:int=500, debug=False):
+def get_summary_from_text( text,length:int=1024, *, context_size:int|None=None, overlap:int=500, model:str=None, debug=False):
 
     if not text or not isinstance(text,str):
         return text
 
     if not os.environ.get('OPENAI_API_KEY'):
         return text[:length]
+
+    max_input = int( get_max_input_token( model ) * 0.7 )
+    if isinstance(context_size,int) and context_size>1:
+        context_size = min( context_size, max_input )
+    else:
+        context_size = max_input
 
     summary_text =  text
 
@@ -692,7 +695,7 @@ def get_summary_from_text( text,length:int=1024, *, context_size:int=14000, over
         update:bool = False
         for text in input_list:
             if len(text)>target_length:
-                summary = summarize_web_content( text, length=target_length, debug=debug )
+                summary = summarize_web_content( text, length=target_length, model=model, debug=debug )
                 output_list.append( summary )
                 update = True
             else:
@@ -705,6 +708,7 @@ def get_summary_from_text( text,length:int=1024, *, context_size:int=14000, over
 
     return summary_text[:length]
 
-def get_summary_from_url(url, length:int=1024, *, debug=False):
+def get_summary_from_url(url, length:int=1024, *, model:str=None, debug=False):
+    """urlからhtmlをgetしてテキスト抽出して要約する"""
     text:str = get_text_from_url( url, debug=debug )
-    return get_summary_from_text( text, debug=debug)
+    return get_summary_from_text( text, model=model, debug=debug)
