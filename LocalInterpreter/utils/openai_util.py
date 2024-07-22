@@ -90,7 +90,7 @@ def summarize_web_content( text:str, *, length:int=None, model:str=None, debug=F
         else:
             prompt = f"Summarize the following text:\n\n{text}\n\nSummary:"
 
-    return summarize_text( text, prompt=prompt,input=text, model=model )
+    return summarize_text( text, prompt=prompt, model=model )
 
 def summarize_text( text:str, *, prompt:str, model:str=None):
 
