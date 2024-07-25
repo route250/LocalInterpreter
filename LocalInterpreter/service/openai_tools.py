@@ -24,12 +24,12 @@ class OpenAITools(ServiceSchema):
     def add_service(self,service:QuartServiceBase):
         ServiceSchema.add_service(self,f"x{len(self.path_dict)}",service)
 
-    def call( self, fname, args ):
+    def call( self, fname, args, *, messages:list[dict]=None ):
         for path,method_dict in self.path_dict.items():
             service:QuartServiceBase
             for method,service in method_dict.items():
                 if fname==service.name:
-                    ret:str = service.call(args)
+                    ret:str = service.call(args, messages=messages)
                     return ret
 
     def get_service( self, fname:str ) ->QuartServiceBase:
@@ -39,7 +39,7 @@ class OpenAITools(ServiceSchema):
                 if fname==service.name or fname==service.get_func_name():
                     return service
 
-    def tool_run( self, call_id, tool_name, tool_args ):
+    def tool_run( self, call_id, tool_name, tool_args, *, messages:list[dict]=None ):
         logger.info(f"[TOOL_RUN]{call_id} {tool_name} {tool_args}")
         service = self.get_service( tool_name )
         if not service:
@@ -49,13 +49,13 @@ class OpenAITools(ServiceSchema):
         except Exception as ex:
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: Can not parse arguments: {ex}"}
         try:
-            ret = service.call( args )
+            ret = service.call( args, messages=messages )
             return {'role':'tool', 'tool_call_id':call_id, 'content':ret }
         except Exception as ex:
             logger.exception('error on tool')
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: {ex.__class__.__name__}: {ex}"}
         
-    def tool_call( self, chatcomp:ChatCompletion ) ->list[dict]:
+    def tool_call( self, chatcomp:ChatCompletion, *, messages:list[dict]=None ) ->list[dict]:
         if not isinstance(chatcomp,ChatCompletion):
             raise ValueError('invalid arguments')
         result=[]
@@ -87,7 +87,7 @@ class OpenAITools(ServiceSchema):
             pass
 
         for fid, service, args in tools:
-            ret = service.call(args)
+            ret = service.call(args, messages=messages)
             result.append( {'role':'tool', 'tool_call_id':fid, 'content':ret} )
         return result
 

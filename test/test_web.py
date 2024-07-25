@@ -1,9 +1,18 @@
 import sys
 import os
+import asyncio
 sys.path.append(os.getcwd())
 import LocalInterpreter.utils.web as web
 
 # テスト用の関数
+def get_html():
+    link = 'https://tenki.jp/past/2024/07/weather'
+    link = 'https://tenki.jp/past/2024/07/weather/'
+    keyword = '天気'
+    html_bytes,err = web.fetch_html(link)
+    text = web.get_text_from_html( html_bytes, keywords=keyword )
+    print(text)
+
 def test_split_text_with_overlap():
     test_text = "123456789012345abcde123456789012345678901234567890"
     test_text = "abcdefghijklmnopqrstabcdefghijklmnopqrstabcdefghij"
@@ -28,8 +37,9 @@ def test_get_text_from_url():
     url = 'https://wpb.shueisha.co.jp/news/politics/2024/06/07/123479/'
     # url = 'https://nihon.matsu.net/nf_folder/nf_mametisiki/nf_animal/nf_animal_tubame.html'
     url = 'https://tenki.jp/forecast/6/30/6200/27210/1hour.html'
+    url = 'https://jp.tradingview.com/symbols/NASDAQ-NVDA/'
     print( "-----------------------------")
-    text = web.get_text_from_url(url)
+    text = web.get_text_from_url(url, debug=True)
     print( "-----------------------------")
     print(text)
     print( "-----------------------------")
@@ -52,7 +62,7 @@ def test_get_text_from_testdata():
         with open( input_file, 'rb') as stream:
             html_bytes = stream.read()
         #
-        text = web.get_text_from_html( html_bytes )
+        text = web.get_text_from_html( html_bytes, debug=True )
         #
         output_file=os.path.join( output_dir, f"{case_name}.txt" )
         with open( output_file, 'w' ) as stream:
@@ -63,6 +73,19 @@ def test_decode_and_parse_url():
     url = "/trends/explore?q=/m/012f86&date=2023-05-01+2023-06-01&geo=JP"
     result = web.decode_and_parse_url(url)
     print(result)
+
+def test_searchx():
+    keyword:str = '京都の天気予報 2024年7月26日'
+    messages:list[dict] = [
+        {'role': 'assistant', 'content': '{"text_to_speech": "よお、おひるだぜ。今日は蒸し暑いな、ブラザー。そんなとこで何してんの？"}'},
+        {'role': 'user', 'content': 'ぼーっとな'},
+        {'role': 'assistant', 'content': '{"text_to_speech": "ぼーっとしてるか。ったく、ブラザーも暇だな。何か面白いことでも考えたらどうなんだ？俺なんか今日、昼飯に何食うかずっと悩んでたぜ。そんな感じで無駄に時間を浪費するのもどうかと思うが、どうする？"}'},
+        {'role': 'user', 'content': 'うーん、明日の京都の天気ってわかる？'}
+    ]
+
+    text:str = web.duckduckgo_search( keyword, messages=messages )
+
+    print(text)
 
 def main():
     from dotenv import load_dotenv, find_dotenv
@@ -78,4 +101,16 @@ def main():
         print(f"## content\n{content}")
 
 if __name__ == "__main__":
-    test_get_text_from_testdata()
+    #get_html()
+    test_searchx()
+    #test_get_text_from_testdata()
+
+
+#    京都の天気予報 2024年7月26日
+
+#[{'role': 'assistant', 'content': '{"text_to_speech": "よお、おひるだぜ。今日は蒸し暑いな、ブラザー。そんなとこで何してんの？"}'}, {'role': 'user', 'content': 'ぼーっとな'}, {'role': 'assistant', 'content': '{"text_to_speech": "ぼーっとしてるか。ったく、ブラザーも暇だな。何か面白いことでも考えたらどうなんだ？俺なんか今日、昼飯に何食うかずっと悩んでたぜ。そんな感じで無駄に時間を浪費するのもどうかと思うが、どうする？"}'}, {'role': 'user', 'content': 'うーん、明日の京都の天気ってわかる？'}]
+
+
+#https://tenki.jp/past/2024/07/weather テキストが文字化ける
+
+# messagesから会話だけ抽出すること

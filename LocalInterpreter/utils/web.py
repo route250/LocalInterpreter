@@ -54,7 +54,13 @@ def decode_and_parse_url(url):
 
     return query_params_dict
 
-async def a_fetch_html(url:str) ->bytes:
+def str_decode( b:bytes, enc ) ->str|None:
+    try:
+        return b.decode(enc)
+    except:
+        return None
+
+async def a_fetch_html(url:str) ->str|bytes:
     logger.info(f"a_fetch_html URL={url}")
     if not url or not url.startswith('http'):
         return b'','url is invalid.'
@@ -65,6 +71,8 @@ async def a_fetch_html(url:str) ->bytes:
             response:Response = await client.get(url)
             if response.status_code != 200:
                 return b'',f'http response code is {response.status_code}.'
+            content_type = response.headers.get('Content-Type')
+            charset_encoding = response.charset_encoding
             # BytesIOバッファを作成
             byte_buffer = BytesIO()
 
@@ -74,7 +82,14 @@ async def a_fetch_html(url:str) ->bytes:
 
             # バッファの先頭にシーク
             byte_buffer.seek(0)
-            return byte_buffer.getvalue(),None
+            bdata:bytes = byte_buffer.getvalue()
+            for cs in [charset_encoding,'utf-8','Shift_JIS']:
+                try:
+                    text = bdata.decode(cs)
+                    return text, None
+                except:
+                    pass
+            return bdata,None
     except httpx.ConnectTimeout as ex:
         return b'',f'{ex}'
     except httpx.ReadTimeout as ex:
@@ -91,6 +106,9 @@ async def a_fetch_html(url:str) ->bytes:
     except Exception as ex:
         logger.exception(f"can not get from {url}")
         raise ex
+
+def fetch_html(url:str) ->str|bytes:
+    return asyncio.run( a_fetch_html(url) )
 
 def duckduckgo_search( keyword, *, messages:list[dict]=None, lang:str='ja', num:int=5, debug=False ) ->str:
     result_json:list[dict] = duckduckgo_search_json( keyword, messages=messages, lang=lang, num=num, debug=debug)
@@ -127,18 +145,28 @@ def duckduckgo_search_json( keyword:str, *, messages:list[dict]=None, lang:str='
 
 async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]=None, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
 
-    search_results:list[dict] = await _a_duckduckgo_search_api( keyword, lang=lang, num=num, debug=debug )
+    xnum = min( num*4, 100 )
+    search_results:list[dict] = await _a_duckduckgo_search_api( keyword, lang=lang, num=xnum, debug=debug )
     if not isinstance(search_results,list) or len(search_results)==0:
         return []
 
     # キーワード分解
     words = []
     for w in keyword.split():
+        # 特定のキーワードをスキップ
         if w.startswith('-') or w.startswith('after:') or w.startswith('before:'):
             continue
         if w == '(' or w == ')' or w=='AND' or w=='OR':
             continue
-        words.append(w)
+
+        if 'の' in w:
+            # 「の」で分割して部分を追加
+            split_parts = [n.strip() for n in w.split('の') if n.strip()]
+            words.extend(split_parts)
+        else:
+            # キーワードを追加
+            words.append(w)
+
     # 会話履歴
     prompt = None
     if isinstance(messages,list):
@@ -156,58 +184,71 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]=None, la
             if n>=4:
                 break
         if n>0:
-            prompt = f"# 会話履歴\n{prompt}\n"
-            target="と会話履歴"
+            prompt = f"# 会話履歴\n{prompt}\n\n"
+            target="と会話履歴の内容"
 
         # 短く要約する
-        prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword)}\n\n# 検索結果のURLから取得したテキスト\n```\n{{}}\n```\n\n# 要約処理\n\n検索キーワード{target}に対応する情報を200文字以内で要約して出力して下さい.\n\n# 出力:"
-
-
+        slen=200
+        NOINFO='NoInfo'
+        prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword)}"
+        prompt = f"{prompt}\n\n# 検索結果のURLから取得したテキスト\n```\n{{}}\n```"
+        prompt = f"{prompt}\n\n# 要約処理\n"
+        prompt = f"{prompt} 1. 会話履歴と検索キーワードから、どのような情報を探しているかを想定して下さい。\n"
+        prompt = f"{prompt} 1. 取得したテキストに検索キーワードが含まれているか判断する。間違えやすいワードに注意\n"
+        prompt = f"{prompt}   例) '東京都' と '京都' は異る地名\n"
+        prompt = f"{prompt} 2. 取得したテキストに、情報が無ければ{NOINFO}だけ出力して終了。\n"
+        prompt = f"{prompt} 3. 検索キーワード{target}に対応する情報を{slen}文字以内に要約して出力して下さい。\n"
+        prompt = f"{prompt}\n\n# 出力:"
     # tasks = [ a_search_check( x, words ) for x in search_results ]
 
     # check_results = await asyncio.gather( *tasks )
     # results = [ r for r in check_results if r ]
 
     results=[]
+    i=0
     for item in search_results:
-        res = await _a_th_duckduckgo_search( item, words, prompt_fmt=prompt, lang=lang, num=num, debug=debug )
+        res, ok = await _a_th_duckduckgo_search( item, words, prompt_fmt=prompt, lang=lang, debug=debug )
         if res:
-            results.append(res)
-            if len(results)>=num:
-                break
+            if ok:
+                results.insert(i,res)
+                i+=1
+                if i>=num:
+                    break
+            else:
+                results.append(res)
 
-    return results
+    return results[:num]
 
-async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:str|None=None, lang:str='ja', num:int=5, debug=False ):
+async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:str|None=None, lang:str='ja', debug=False ):
     # 検索結果からURL
     link = item.get('link')
     logger.debug(f"_a_th_duckduckgo_search URL={link}")
     if not link:
-        return None
+        return None, False
     # htmlを取得して本文を取り出す
     t1 = time.time()
-    html_bytes,err = await a_fetch_html(link)
-    if err:
+    html_data,err = await a_fetch_html(link)
+    if err or not html_data:
         item['err'] = err
-        return item
-    # キーワードが含まれるか？
-    # html_text = html_bytes.decode()
-    # Hit = False
-    # for w in keyword:
-    #     if w in html_text:
-    #         Hit=True
-    # if not Hit:
-    #     return item
+        return item, False
+    if isinstance(html_data,str):
+        # キーワードが含まれるか？
+        Hit = False
+        for w in keyword:
+            if w in html_data:
+                Hit=True
+        if not Hit:
+            return item, False
     # htmlからテキスト抽出
-    text = get_text_from_html( html_bytes, keywords=keyword )
+    text = get_text_from_html( html_data, keywords=keyword )
     t2 = time.time()
     logger.info( f"{link} get {t2-t1}(sec)")
     if not isinstance(text,str) or len(text.strip())==0:
-        return None
+        return None, False
 
     if prompt_fmt is None:
         # 要約しないそのまま返信
-        return item
+        return item, True
 
     # 要約する
 
@@ -217,19 +258,31 @@ async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:s
         p = text.find(w)
         if 0<=p and p<start_pos:
             start_pos = p
-    while start_pos>0 and text[start_pos] in '.,。':
-        start_pos -= 1
+    if start_pos<len(text):
+        while start_pos>0 and text[start_pos] in '.,。':
+            start_pos -= 1
+    else:
+        start_pos = max( 0, int(len(text)/2)-1000)
     text = text[start_pos:start_pos+2000]
 
     # 短く要約する
-    prompt = prompt_fmt.format(text)
-    digest = summarize_text( text, prompt=prompt )
-    t3 = time.time()
-    logger.info( f"{link} summarize {t3-t2}(sec)")
-    # snippetを更新する
-    if digest:
-        item['snippet'] = digest
-    return item
+    try:
+        if '{}' in prompt_fmt:
+            prompt = prompt_fmt.replace('{}',text)
+        else:
+            prompt = prompt_fmt
+        digest = summarize_text( text, prompt=prompt )
+        t3 = time.time()
+        logger.info( f"{link} summarize {t3-t2}(sec)")
+        # snippetを更新する
+        ok = digest and not 'NoInfo' in digest
+        if ok:
+            item['snippet'] = digest
+            return item, ok
+        else:
+            return None, False
+    except Exception as ex:
+        raise ex
 
 def convert_keyword( keyword ):
     www = []
@@ -530,94 +583,113 @@ def strip_tag_text(elem:Elem) ->bool:
             return True
     return False
 
+def update_list_with_value(lst, start_index, value):
+    """指定したインデックスからリストの要素を指定した値で更新します。"""
+    if len(lst)<=start_index:
+        last = lst[-1] if len(lst)>0 else 0
+        while( len(lst)<=start_index):
+            lst.append(last)
+        lst.append(value)
+    else:
+        lst[start_index:] = [value] * (len(lst) - start_index)
+
 def get_text_from_html(html_data:str|bytes, *, as_raw=False, as_html=False, keywords=None, debug=False):
     try:
         tmpdir = os.path.join('tmp', 'htmldump')
-
-        if debug:
-            os.makedirs(tmpdir, exist_ok=True)
-            mode = 'w' if isinstance(html_data,str) else 'wb'
-            with open( os.path.join(tmpdir,'original.html' ), mode ) as stream:
-                stream.write(html_data)
-
-        if isinstance(html_data,str):
-            parser = etree.HTMLParser(remove_comments=True)
-            tree = etree.parse(raw_buffer, parser)
-            root = tree.getroot()
-        else:
-            raw_buffer = BytesIO(html_data)
-            raw_buffer.seek(0)
-            parser = etree.HTMLParser(remove_comments=True)
-            tree = etree.parse(raw_buffer, parser)
-            root = tree.getroot()
-
+        root = None
+        text = None
+        result = ''
+        postfix:str|None = None if not debug else "DBG"
         time_list = [time.time()]
-        if not as_raw and root is not None:
-            # 絶対不要なタグを削除
-            etree.strip_elements(root, "script", "style", "meta", with_tail=False)
-            time_list.append(time.time())  # 1
-            # もしarticleタグmainタグが見つかれば、それ以外を消す
-            articles = [ elem for elem in root.xpath('//article|//main') if Xu.count(elem,100) ]
-            if articles:
-                body = root.find('body')
-                body.clear()
-                for article in articles:
-                    body.append(article)
-            time_list.append(time.time())  # 2
-            # <b>と<strong>を解除
-            for elem in root.xpath('//b|//strong'):
-                Xu.pop_tag(elem)
-            time_list.append(time.time())  # 3
-            # aタグ、buttonタグの周囲に何も無ければ広告とみなして削除
-            for element in root.xpath('//a|//button'):
-                parent = element.getparent()
-                if not strip_tag_text(parent):
-                    Xu.remove_tag(element)
-            time_list.append(time.time())  # 4
+        try:
+            if isinstance(html_data,str):
+                parser = etree.HTMLParser(remove_comments=True, no_network=True)
+                root = etree.fromstring(html_data, parser)
+            else:
+                raw_buffer = BytesIO(html_data)
+                raw_buffer.seek(0)       
+                parser = etree.HTMLParser(encoding=enc, remove_comments=True, no_network=True)
+                tree = etree.parse(raw_buffer, parser)
+                root = tree.getroot()
 
-            cleanup_tags(root)
-            time_list.append(time.time())  # 5
-
-            if debug:
-                with open(os.path.join(tmpdir,'output.html'), 'w') as stream:
-                    if root is not None:
-                        stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
-            time_list.append(time.time())  # 6
-
-        if as_html:
+            update_list_with_value(time_list,1,time.time())
             if root is not None:
-                return etree.tostring(root, pretty_print=True, encoding='unicode')
-            return ''
+                if not as_raw:
+                    # 絶対不要なタグを削除
+                    etree.strip_elements(root, "script", "style", "meta", with_tail=False)
+                    update_list_with_value(time_list,2,time.time())
+                    # もしarticleタグmainタグが見つかれば、それ以外を消す
+                    articles = [ elem for elem in root.xpath('//article|//main') if Xu.count(elem,100) ]
+                    if articles:
+                        body = root.find('body')
+                        body.clear()
+                        for article in articles:
+                            body.append(article)
+                    update_list_with_value(time_list,3,time.time())
+                    # <b>と<strong>を解除
+                    for elem in root.xpath('//b|//strong'):
+                        Xu.pop_tag(elem)
+                    update_list_with_value(time_list,4,time.time())
+                    # aタグ、buttonタグの周囲に何も無ければ広告とみなして削除
+                    for element in root.xpath('//a|//button'):
+                        parent = element.getparent()
+                        if not strip_tag_text(parent):
+                            Xu.remove_tag(element)
+                    update_list_with_value(time_list,5,time.time())
 
-        # raw_text = ''.join(root.itertext())
-        #lines = [line.strip() for line in raw_text.splitlines()]
-        #text = "\n".join(line for line in lines if line)
-        text = Xu.to_text(root)
+                    cleanup_tags(root)
 
-        time_list.append(time.time())  # 7
+                update_list_with_value(time_list,6,time.time())
+
+                if as_html:
+                    htxt = etree.tostring(root, pretty_print=True, encoding='unicode')
+                    result = htxt
+                else:
+                    text = Xu.to_text(root)
+                    result = text
+                    if text is None or len(text.strip())==0:
+                        postfix = "EMPTY"
+                    elif (keywords and not any(w in text for w in keywords)):
+                        postfix = "NOWORD"
+        except Exception as ex:
+            logger.exception('can not summary html?')
+            postfix = "ERR"
+
+        update_list_with_value(time_list,7,time.time())
         t_all = time_list[-1] - time_list[0]
-        if debug:
-            with open(os.path.join(tmpdir,'output.txt'), 'w') as stream:
-                stream.write(text)
-
-        if debug or t_all > 0.1 or (keywords and not any(w in text for w in keywords)):
-            if debug or t_all > 0.1:
+        #----------
+        if t_all>0.1:
+            if postfix is None:
+                postfix = "SLOW"
+            if debug:
                 logger.debug(f"Text time {t_all}sec")
                 for i in range(1, len(time_list)):
                     logger.debug(f" {i} {time_list[i] - time_list[i - 1]}sec")
-            bbb = "" if t_all < 1.0 else "_SLOW"
+        if postfix is not None:
             os.makedirs(tmpdir, exist_ok=True)
-            filename = os.path.join(tmpdir,'dump') #get_next_filename(dir, prefix='dump')
-            mode = 'w' if isinstance(html_data,str) else 'wb'
-            with open(f'{filename}{bbb}_raw.html', mode) as stream:
-                stream.write(html_data)                
-            with open(f'{filename}{bbb}_strip.html', 'w') as stream:
+            # filename = os.path.join(tmpdir,'dump')
+            filename = get_next_filename(tmpdir, prefix='dump')
+            filename = f"{filename}{postfix}"
+            try:
+                mode = 'w' if isinstance(html_data,str) else 'wb'
+                with open(f'{filename}_raw.html', mode) as stream:
+                    stream.write(html_data)
+            except Exception as ex:
+                logger.error( f"{ex}" )
+            try:
                 if root is not None:
-                    stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
-            with open(f'{filename}{bbb}.txt', 'w') as stream:
-                stream.write(text)
+                    with open(f'{filename}_strip.html', 'w') as stream:
+                        stream.write(etree.tostring(root, pretty_print=True, encoding='unicode'))
+            except Exception as ex:
+                logger.error( f"{ex}" )
+            try:
+                if text is not None:
+                    with open(f'{filename}.txt', 'w') as stream:
+                        stream.write(text)
+            except Exception as ex:
+                logger.error( f"{ex}" )
 
-        return text
+        return result
 
     except Exception as ex:
         logger.exception('can not get text')
@@ -667,7 +739,7 @@ def simple_text_to_chunks( text, chunk_size=2000, overlap=100 ):
         start = end - overlap
     return chunks
 
-def get_summary_from_text( text,length:int=1024, *, context_size:int|None=None, overlap:int=500, model:str=None, debug=False):
+def get_summary_from_text( text,length:int=1024, *, context_size:int|None=None, overlap:int=500, messages:list[dict]=None, model:str=None, debug=False):
 
     if not text or not isinstance(text,str):
         return text
@@ -695,7 +767,7 @@ def get_summary_from_text( text,length:int=1024, *, context_size:int|None=None, 
         update:bool = False
         for text in input_list:
             if len(text)>target_length:
-                summary = summarize_web_content( text, length=target_length, model=model, debug=debug )
+                summary = summarize_web_content( text, length=target_length, messages=messages, model=model, debug=debug )
                 output_list.append( summary )
                 update = True
             else:
@@ -708,7 +780,7 @@ def get_summary_from_text( text,length:int=1024, *, context_size:int|None=None, 
 
     return summary_text[:length]
 
-def get_summary_from_url(url, length:int=1024, *, model:str=None, debug=False):
+def get_summary_from_url(url, length:int=1024, *, messages:list[dict]=None, model:str=None, debug=False):
     """urlからhtmlをgetしてテキスト抽出して要約する"""
     text:str = get_text_from_url( url, debug=debug )
-    return get_summary_from_text( text, model=model, debug=debug)
+    return get_summary_from_text( text, length=length, messages=messages, model=model, debug=debug)

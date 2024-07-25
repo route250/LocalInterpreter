@@ -72,7 +72,7 @@ def is_japanese_text( text:str ):
     ret = all(ord(char) < 128 for char in text) == False
     return ret
 
-def summarize_web_content( text:str, *, length:int=None, model:str=None, debug=False ) ->str:
+def summarize_web_content( text:str, *, length:int=None, messages:list[dict]=None, model:str=None, debug=False ) ->str:
     logger.info(f"[SUMMARIZE] len:{len(text)}/{length} {text[:20]}")
 
     # テキストが日本語かどうかを確認

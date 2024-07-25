@@ -75,7 +75,10 @@ class ApiLog:
         if isinstance( o1, Exception ):
             return ''.join(traceback.format_exception(type(o1), o1, o1.__traceback__))
         else:
-            return json.dumps(o1, ensure_ascii=False)
+            try:
+                return json.dumps(o1, ensure_ascii=False)
+            except:
+                return str(o1)
             
     @staticmethod
     def log(input, out1, out2=None):

@@ -46,7 +46,7 @@ class PythonService(QuartServiceBase):
     async def before_serving(self):
         await self.repo.setup()
 
-    async def call(self,args):
+    async def acall(self,args, *, messages:list[dict]=None):
         args = await self.request_get_json()
         sessionId:str = args.get('sessionId')
         cmd_code = args.get('code')
@@ -72,5 +72,5 @@ class PythonService(QuartServiceBase):
             logger.exception('execution error')
             return jsonify({'error': str(e)}), 500
 
-    def call(self,args):
-        return asyncio.run(self.acall(args))
+    def call(self,args, *, messages:list[dict]=None):
+        return asyncio.run(self.acall(args, messages=messages))

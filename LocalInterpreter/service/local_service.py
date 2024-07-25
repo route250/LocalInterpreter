@@ -39,10 +39,10 @@ class QuartServiceBase(BaseService):
             data_json = await self.request_get_json()
         return await self.acall( data_json )
 
-    async def acall(self,args:dict):
-        return self.call(args)
+    async def acall(self,args:dict, *, messages:list[dict]=None):
+        return self.call(args, messages=messages )
 
-    def call(self,args:dict):
+    def call(self,args:dict, *, messages:list[dict]=None):
         # asyncio.run(self.acall(args))
         pass
 
