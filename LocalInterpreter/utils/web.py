@@ -593,6 +593,14 @@ def update_list_with_value(lst, start_index, value):
     else:
         lst[start_index:] = [value] * (len(lst) - start_index)
 
+def detect_encoding( buffer:bytes ):
+    if b'Shift' in buffer or b'shift' in buffer:
+        if b'JIS' in buffer or b'jis' in buffer:
+            return 'Shift_JIS'
+    if b'UTF-8' in buffer or b'utf-8' in buffer:
+        return 'UTF-8'
+    return None
+
 def get_text_from_html(html_data:str|bytes, *, as_raw=False, as_html=False, keywords=None, debug=False):
     try:
         tmpdir = os.path.join('tmp', 'htmldump')
@@ -607,8 +615,9 @@ def get_text_from_html(html_data:str|bytes, *, as_raw=False, as_html=False, keyw
                 root = etree.fromstring(html_data, parser)
             else:
                 raw_buffer = BytesIO(html_data)
-                raw_buffer.seek(0)       
-                parser = etree.HTMLParser(remove_comments=True, no_network=True)
+                raw_buffer.seek(0)
+                enc = detect_encoding( raw_buffer.getvalue()[:1000] )
+                parser = etree.HTMLParser(encoding=enc, remove_comments=True, no_network=True)
                 tree = etree.parse(raw_buffer, parser)
                 root = tree.getroot()
 

@@ -74,8 +74,8 @@ def test_by_test_data():
 
     ]
 
-    input_dir = "./testData"
-    output_dir="./tmp"
+    input_dir = "./testData/jsonparser"
+    output_dir="./tmp/jsonparser"
     os.makedirs( output_dir, exist_ok=True )
 
     test_case_list = {}

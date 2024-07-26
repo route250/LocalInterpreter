@@ -318,7 +318,7 @@ class HtmlTableCell:
 def cell_to_text(cell: HtmlTableCell):
     if cell is None or cell.text is None:
         return ""
-    text = cell.text.replace("\n","\\n")
+    text = cell.text.replace("\n","</br>")
     return text
 
 def line_to_text(line: list[HtmlTableCell], width: int=0):
@@ -326,6 +326,12 @@ def line_to_text(line: list[HtmlTableCell], width: int=0):
     cells = [cell_to_text(cell) for cell in line] + [""] * (width - len(line))
     markdown = "|" + "|".join(cells) + "|"
     return markdown
+
+def parseInt(value,default:int=1) ->int:
+    try:
+        return int(value)
+    except:
+        return default
 
 class HtmlTableData:
 
@@ -372,9 +378,89 @@ class HtmlTableData:
                 self._tbl[r][c] = cell
         self._current_col = ce + 1
 
+    def parse(self, elem:Elem ):
+        if elem is None or elem.tag!='table':
+            return ""
+        for child in elem:
+            self.parse_tr(child)
+
+    def parse_tr(self, elem:Elem ):
+        if elem is None or elem.tag!='tr':
+            return
+        self.tr()
+        for child in elem:
+            self.parse_td(child)
+
+    def parse_td(self, elem:Elem):
+        if elem is not None:
+            th = False
+            if elem.tag == 'th':
+                th=True
+            elif elem.tag != 'td':
+                return
+            cols = parseInt(elem.attrib.get('colspan'),1)
+            rows = parseInt(elem.attrib.get('rowspan'),1)
+            text = to_text(elem)
+            self.add( text, th=th, cols=cols, rows=rows )
+
+    def is_sep( self, r ):
+        # 切れてる？
+        if r<=0 or len(self._tbl)<=r:
+            return True # 先頭と最後なら切れてる
+        before_line = self._tbl[r-1]
+        after_line = self._tbl[r]
+        max_cols = max( len(before_line), len(after_line) )
+        for c in range(max_cols):
+            before_cell = before_line[c] if c<len(before_line) else None
+            after_cell = after_line[c] if c<len(after_line) else None
+            if before_cell is not None and after_cell is not None and before_cell is after_cell:
+                return False # 切れてない
+        return True # 切れてる
+    
+        
+    def row_merge(self, r ):
+        line = self._tbl[r]
+        head_rows = line[0].rows if len(line)>0 else 1
+        if head_rows<=1:
+            return r+head_rows# 2列以下 1列目がrowspan=1なら何もしない
+        if not self.is_sep(r) or not self.is_sep(r+head_rows ):
+            return r+head_rows
+        # 対象Lineだけ抜き出す
+        grp = self._tbl[r:r+head_rows]
+        # 最大列幅を調べる
+        max_cols = max( len(line) for line in grp )
+        # 改行を含んでないか確認する
+        for line in grp:
+            for cell in line[1:]:
+                if cell is not None and "\n" in cell.text:
+                    return r+head_rows # セル内で改行があるので何もしない
+        # 行マージ可能
+        new_line = [ line[0] ]
+        for c in range(1,max_cols):
+            before_cell = None
+            text2 = []
+            for line in grp:
+                cell = line[c] if c<len(line) else None
+                if cell and cell is before_cell:
+                    cell = None # 前の行と同じセルならブランクとする
+                text2.append( cell.text if cell and cell.text else "" )
+                before_cell = cell
+            cell = HtmlTableCell( "\n".join(text2) )
+            new_line.append( cell )
+        self._tbl[r] = new_line
+        for r in range(r+1, r+head_rows):
+            del self._tbl[r]
+        return r+1
+
     def to_markdown(self):
         if len(self._tbl)==0:
             return ""
+
+        # マージできる行はマージする
+        r = 0
+        while r<len(self._tbl):
+            r = self.row_merge(r)
+
         # 列幅
         max_cols = max( len(line) for line in self._tbl )
         # ヘッダ
@@ -392,7 +478,7 @@ class HtmlTableData:
         for r in range(r,len(self._tbl)):
             markdown += "\n" + line_to_text( self._tbl[r] )
 
-        return markdown
+        return "\n\n" + markdown + "\n\n"
 
 # re_symbol_replace:re.Pattern = re.compile(r'[^\w\s\u3040-\u30FF\u4E00-\u9FFF]')
 
@@ -452,10 +538,6 @@ md_pre_map = {
     'h2': "\n## ",
     'h3': "\n### ",
     'h4': "\n#### ",
-    'table': "\n<table>\n",
-    "tr": "\n<tr>\n",
-    'td': "<td>",
-    'th': "<th>",
 }
 md_post_map = {
     'br': "\n",
@@ -468,34 +550,25 @@ md_post_map = {
     'h2': "\n",
     'h3': "\n",
     'h4': "\n",
-    'table': "\n</table>\n",
-    'tr': "\n</tr>\n",
-    "td": "</td>",
-    "th": "</th>"
 }
 def to_text(elem:Elem):
     if elem is None:
         return ''
+    if elem.tag == 'table':
+        tbl:HtmlTableData = HtmlTableData()
+        tbl.parse(elem)
+        return tbl.to_markdown()
     try:
         # if elem.tag in md_h_map:
         #     text = child_to_text("",elem)
         #     return md_h_map[elem.tag]+trimA(text)+"\n"
 
         pre:str = md_pre_map.get(elem.tag)
-        if elem.tag=='th' or elem.tag=='td':
-            pre="<"+elem.tag
-            cs = elem.get('colspan')
-            if cs:
-                pre += f" colspan=\"{cs}\""
-            rs = elem.get('rowspan')
-            if rs:
-                pre += f" colspan=\"{rs}\""
-            pre+=">"
         text = xs_strip( child_to_text("",elem) )
         if elem.tag == 'a':
             href:str = elem.get('href')
             if href and ( href.startswith('https://') or href.startswith('http://')):
-                text = f"[{text}]({href})"
+                text = f"[{text}]({href.replace(' ','%20')})"
         post:str = md_post_map.get(elem.tag)
         atext = xs_join(pre,text)
         atext = xs_join(atext,post)

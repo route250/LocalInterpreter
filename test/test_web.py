@@ -35,7 +35,7 @@ def test_get_text_from_url():
     url = 'https://lsdblog.seesaa.net/article/503246391.html'
     url = 'https://wpb.shueisha.co.jp/news/politics/2024/06/14/123512/'
     url = 'https://wpb.shueisha.co.jp/news/politics/2024/06/07/123479/'
-    # url = 'https://nihon.matsu.net/nf_folder/nf_mametisiki/nf_animal/nf_animal_tubame.html'
+    # url = 'https://nihon.matsu.net/nf_folder/nf_mametisiki/nf_animal/nf_animal_tubame.html' # URL Error: [SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1007)
     url = 'https://tenki.jp/forecast/6/30/6200/27210/1hour.html'
     url = 'https://jp.tradingview.com/symbols/NASDAQ-NVDA/'
     print( "-----------------------------")
@@ -61,12 +61,22 @@ def test_get_text_from_testdata():
         input_file = os.path.join( input_dir, file )
         with open( input_file, 'rb') as stream:
             html_bytes = stream.read()
+        input_text = input_file.replace(".html",".md")
+        actual_text = None
+        if os.path.exists(input_text):
+            with open( input_text, 'r' ) as stream:
+                actual_text = stream.read()
         #
         text = web.get_text_from_html( html_bytes, debug=True )
         #
-        output_file=os.path.join( output_dir, f"{case_name}.txt" )
+        output_file=os.path.join( output_dir, f"{case_name}.md" )
         with open( output_file, 'w' ) as stream:
             stream.write(text)
+        if actual_text is not None:
+            if actual_text != text:
+                print( "ERROR!" )
+            else:
+                print( "SUCCESS!" )
 
 def test_decode_and_parse_url():
     # Example usage
@@ -102,8 +112,9 @@ def main():
 
 if __name__ == "__main__":
     #get_html()
-    test_searchx()
-    #test_get_text_from_testdata()
+    #test_searchx()
+    # test_get_text_from_url()
+    test_get_text_from_testdata()
 
 
 #    京都の天気予報 2024年7月26日
