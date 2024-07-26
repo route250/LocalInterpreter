@@ -83,7 +83,7 @@ def test_searchx():
         {'role': 'user', 'content': 'うーん、明日の京都の天気ってわかる？'}
     ]
 
-    text:str = web.duckduckgo_search( keyword, messages=messages )
+    text:str = web.duckduckgo_search( keyword, messages=messages, debug=True )
 
     print(text)
 

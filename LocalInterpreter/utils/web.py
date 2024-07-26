@@ -91,9 +91,9 @@ async def a_fetch_html(url:str) ->str|bytes:
                     pass
             return bdata,None
     except httpx.ConnectTimeout as ex:
-        return b'',f'{ex}'
+        return b'',f'ConnectTimeout {ex}'
     except httpx.ReadTimeout as ex:
-        return b'',f'{ex}'
+        return b'',f'ReadTimeout {ex}'
     except httpx.TooManyRedirects as ex:
         logger.error(f"{ex.__class__.__name__} URL:{url}")
         return b'',f'{ex}'
@@ -608,7 +608,7 @@ def get_text_from_html(html_data:str|bytes, *, as_raw=False, as_html=False, keyw
             else:
                 raw_buffer = BytesIO(html_data)
                 raw_buffer.seek(0)       
-                parser = etree.HTMLParser(encoding=enc, remove_comments=True, no_network=True)
+                parser = etree.HTMLParser(remove_comments=True, no_network=True)
                 tree = etree.parse(raw_buffer, parser)
                 root = tree.getroot()
 

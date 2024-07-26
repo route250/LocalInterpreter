@@ -303,6 +303,97 @@ def pop_tag(elem:Elem):
     for i, child in enumerate(children):
         parent.insert(index+i,child)
 
+
+class HtmlTableCell:
+
+    def __init__(self,text, th=False, cols=None, rows=None):
+
+        self.th = th
+        self.text = text
+        self.cols = cols
+        self.rows = rows
+    def __str__(self):
+        return f"\"{self.text}\""
+
+def cell_to_text(cell: HtmlTableCell):
+    if cell is None or cell.text is None:
+        return ""
+    text = cell.text.replace("\n","\\n")
+    return text
+
+def line_to_text(line: list[HtmlTableCell], width: int=0):
+    # Convert each cell to text and fill missing cells with empty strings
+    cells = [cell_to_text(cell) for cell in line] + [""] * (width - len(line))
+    markdown = "|" + "|".join(cells) + "|"
+    return markdown
+
+class HtmlTableData:
+
+    def __init__(self):
+        self._current_row=-1
+        self._current_col=0
+        self._tbl:list[list[HtmlTableCell]] = []
+
+    def get(self, col, row ):
+        if 0<=row and 0<col:
+            if row<len(self._tbl):
+                line = self._tbl[row]
+                if line and col<len(line):
+                    return line[col]
+        return None
+
+    def tr(self):
+        self._current_row += 1
+        self._current_col = 0
+
+    def add(self, text, th=False, cols=1, rows=1):
+        cols = cols if isinstance(cols,int) and cols>1 else 1
+        rows = rows if isinstance(rows,int) and rows>1 else 1
+
+        cell = HtmlTableCell(text, th=th, cols=cols, rows=rows)
+
+        # rowを作る
+        if self._current_row<0:
+            self._current_row = 0
+        rs = self._current_row
+        re = rs + rows - 1
+        while len(self._tbl) <= re:
+            self._tbl.append([])
+        # 追加するカラム位置を決める
+        cs = self._current_col
+        while cs<len(self._tbl[rs]) and self._tbl[rs][cs] is not None:
+            cs+=1
+        ce = cs + cols - 1
+        # セルを埋める
+        for r in range(rs, re + 1):
+            while len(self._tbl[r]) <= ce:
+                self._tbl[r].append(None)
+            for c in range(cs, ce + 1):
+                self._tbl[r][c] = cell
+        self._current_col = ce + 1
+
+    def to_markdown(self):
+        if len(self._tbl)==0:
+            return ""
+        # 列幅
+        max_cols = max( len(line) for line in self._tbl )
+        # ヘッダ
+        header = self._tbl[0]
+        r = 1 if all(cell is not None and cell.th for cell in header) else 0
+        if r == 0:
+            header = []
+
+        markdown = ""
+        # write header
+        markdown = line_to_text( header, max_cols )
+        # Add the markdown header separator
+        markdown += "\n" + "|" + "|".join(["---"] * max_cols) + "|"
+        # data
+        for r in range(r,len(self._tbl)):
+            markdown += "\n" + line_to_text( self._tbl[r] )
+
+        return markdown
+
 # re_symbol_replace:re.Pattern = re.compile(r'[^\w\s\u3040-\u30FF\u4E00-\u9FFF]')
 
 # def remove_symbols(text:str|None) ->str:
