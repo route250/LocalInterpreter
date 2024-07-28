@@ -120,7 +120,7 @@ def xs_is_space( text:str|None ) ->bool:
         return False
     return True
 
-def xs_strip(text:str|None ) ->str:
+def xs_strip(text:str|None ) ->str|None:
     if isinstance(text,str) and len(text)>0:
         text = text.strip()
         if len(text)>0:

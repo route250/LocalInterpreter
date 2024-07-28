@@ -32,19 +32,21 @@ class QuartServiceBase(BaseService):
             logger.exception('invalid requests')
         return {}
 
-    async def service(self,subpath):
+    async def service(self,subpath:str) ->tuple[dict,int]:
         logger.info( f"[QServ] path:{subpath} baseurl:{request.base_url}")
         data_json = {}
         if self.method == "post":
             data_json = await self.request_get_json()
-        return await self.acall( data_json )
+        res_data, code = await self.acall( data_json )
+        res_json, code = self.to_response_json( res_data, code )
+        return res_json, code
 
-    async def acall(self,args:dict, *, messages:list[dict]=None):
+    async def acall(self,args:dict, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
         return self.call(args, messages=messages )
 
-    def call(self,args:dict, *, messages:list[dict]=None):
+    def call(self,args:dict, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
         # asyncio.run(self.acall(args))
-        pass
+        raise NotImplementedError()
 
 class QuartServerBase(Quart,ServiceSchema):
 
@@ -73,16 +75,21 @@ class QuartServerBase(Quart,ServiceSchema):
         for service in self._service_ref.values():
             await service.before_serving()
 
-    async def _serve(self,subpath):
+    async def _serve(self,subpath) ->Response:
         logger.info( f"[Serv] path:{subpath} baseurl:{request.base_url}")
         key:str = f"{request.method.upper()}!!/{subpath}"
-        service:QuartServiceBase = self._service_ref.get(key)
+        service:QuartServiceBase|None = self._service_ref.get(key)
         if service:
-            return await service.service(subpath)
+            try:
+                res_json,code = await service.service(subpath)
+                return jsonify( res_json, status=code )
+            except Exception as ex:
+                logger.exception(f'execution error {subpath}:{service}')
+                return jsonify({'error': f"{ex}"}, status=500)
         else:
             return await self.default()
 
-    async def default(self):
+    async def default(self) ->Response:
         try:
             xbase = request.base_url
             yaml = ""
@@ -91,5 +98,5 @@ class QuartServerBase(Quart,ServiceSchema):
             response:Response = Response( response=yaml, status=200)
             return response
         except Exception as e:
-            response:Response = Response( response=jsonify({'error': str(e)}), status=500, content_type="application/json")
+            response:Response = jsonify({'error': str(e)}, status=500)
             return response             

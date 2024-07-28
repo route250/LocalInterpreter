@@ -59,12 +59,12 @@ def trim_json( data ):
         # データがリスト、タプル、辞書でない場合はそのまま返す
         return data
 
-def count_token( text, model:str=None ) ->int:
+def count_token( text, model:str|None=None ) ->int:
     enc = tiktoken.encoding_for_model( to_openai_llm_model(model) )
     tokens = enc.encode(text)
     return len(tokens)
 
-def count_message_token( m:dict, model:str=None ) ->int:
+def count_message_token( m:dict, model:str|None=None ) ->int:
     return count_token( json.dumps(m,ensure_ascii=False), model=model )
 
 def is_japanese_text( text:str ):
@@ -72,7 +72,7 @@ def is_japanese_text( text:str ):
     ret = all(ord(char) < 128 for char in text) == False
     return ret
 
-def summarize_web_content( text:str, *, length:int=None, messages:list[dict]=None, model:str=None, debug=False ) ->str:
+def summarize_web_content( text:str, *, length:int|None=None, messages:list[dict]|None=None, model:str|None=None, debug=False ) ->str:
     logger.info(f"[SUMMARIZE] len:{len(text)}/{length} {text[:20]}")
 
     # テキストが日本語かどうかを確認

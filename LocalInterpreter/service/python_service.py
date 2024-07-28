@@ -1,5 +1,7 @@
+import json
 import asyncio
-from quart import request, Response, jsonify
+from asyncio import AbstractEventLoop as EvLoop
+
 from LocalInterpreter.service.local_service import QuartServiceBase, ServiceParam, ServiceResponse
 from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
 import LocalInterpreter.utils.web as web
@@ -8,7 +10,7 @@ import logging
 logger = logging.getLogger('PythonSrv')
 
 class PythonService(QuartServiceBase):
-    def __init__(self, *, directory:str=None):
+    def __init__(self, *, directory:str|None=None):
         super().__init__('post')
         self.summary = 'python interpreter'
         self.description = 'python interpreter'
@@ -46,11 +48,11 @@ class PythonService(QuartServiceBase):
     async def before_serving(self):
         await self.repo.setup()
 
-    async def acall(self,args, *, messages:list[dict]=None):
-        args = await self.request_get_json()
-        sessionId:str = args.get('sessionId')
-        cmd_code = args.get('code')
-        download_url = args.get('download_url')
+    async def acall(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
+        # args = await self.request_get_json()
+        sessionId:str|None = args.get('sessionId')
+        cmd_code:str|None = args.get('code')
+        download_url:str|None = args.get('download_url')
 
         try:
             result_out:list[str] = []
@@ -63,14 +65,21 @@ class PythonService(QuartServiceBase):
                 out = await session.command( cmd_code )
                 result_out.append(out)
 
-            return jsonify({
+            return {
                 'sessionId': session.sessionId,
                 'stdout': '\n\n'.join(result_out),
-            })
+            }, 200
 
-        except Exception as e:
+        except Exception as ex:
             logger.exception('execution error')
-            return jsonify({'error': str(e)}), 500
+            return f"{ex}",500
 
-    def call(self,args, *, messages:list[dict]=None):
-        return asyncio.run(self.acall(args, messages=messages))
+    def call(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
+        sessionId:str|None = args.get('sessionId')
+        loop:EvLoop = self.repo.exists_session(sessionId)
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except:
+                loop = asyncio.new_event_loop()
+        return loop.run_until_complete(self.acall(args, messages=messages))

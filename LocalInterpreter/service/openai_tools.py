@@ -24,24 +24,25 @@ class OpenAITools(ServiceSchema):
     def add_service(self,service:QuartServiceBase):
         ServiceSchema.add_service(self,f"x{len(self.path_dict)}",service)
 
-    def call( self, fname, args, *, messages:list[dict]=None ):
+    def call( self, fname, args, *, messages:list[dict]|None=None ) ->tuple[dict,int]:
         for path,method_dict in self.path_dict.items():
-            service:QuartServiceBase
             for method,service in method_dict.items():
-                if fname==service.name:
-                    ret:str = service.call(args, messages=messages)
-                    return ret
+                if isinstance(service,QuartServiceBase):
+                    if fname==service.name:
+                        ret,code = service.call(args, messages=messages)
+                        return ret,code
+        raise ValueError(f"not found tool {fname}")
 
-    def get_service( self, fname:str ) ->QuartServiceBase:
+    def get_service( self, fname:str ) ->QuartServiceBase|None:
         for path,method_dict in self.path_dict.items():
-            service:QuartServiceBase
             for method,service in method_dict.items():
-                if fname==service.name or fname==service.get_func_name():
-                    return service
+                if isinstance(service,QuartServiceBase):
+                    if fname==service.name or fname==service.get_func_name():
+                        return service
 
-    def tool_run( self, call_id, tool_name, tool_args, *, messages:list[dict]=None ):
+    def tool_run( self, call_id, tool_name, tool_args, *, messages:list[dict]|None=None ) ->dict:
         logger.info(f"[TOOL_RUN]{call_id} {tool_name} {tool_args}")
-        service = self.get_service( tool_name )
+        service:QuartServiceBase|None = self.get_service( tool_name )
         if not service:
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: tool not found."}
         try:
@@ -49,13 +50,25 @@ class OpenAITools(ServiceSchema):
         except Exception as ex:
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: Can not parse arguments: {ex}"}
         try:
-            ret = service.call( args, messages=messages )
-            return {'role':'tool', 'tool_call_id':call_id, 'content':ret }
+            res_data,code = service.call( args, messages=messages )
+            if isinstance(res_data,dict):
+                # dictならそのままテキスト化
+                res_text = json.dumps( res_data, ensure_ascii=True )
+            elif isinstance(res_data,str):
+                if code != 200 and 'error' not in res_data[:10].lower():
+                    # strで200でなければエラーなので、Errorがなければ付ける
+                    res_text = f"Error: {res_data}"
+                else:
+                    res_text = res_data
+            else:
+                # 想定外なので、とりあえずブランク
+                res_text = ''
+            return {'role':'tool', 'tool_call_id':call_id, 'content':res_text }
         except Exception as ex:
             logger.exception('error on tool')
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: {ex.__class__.__name__}: {ex}"}
         
-    def tool_call( self, chatcomp:ChatCompletion, *, messages:list[dict]=None ) ->list[dict]:
+    def tool_call( self, chatcomp:ChatCompletion, *, messages:list[dict]|None=None ) ->list[dict]:
         if not isinstance(chatcomp,ChatCompletion):
             raise ValueError('invalid arguments')
         result=[]
@@ -67,15 +80,14 @@ class OpenAITools(ServiceSchema):
             tool:ChatCompletionMessageToolCall
             for tool in tool_calls:
                 fid:str = tool.id
-                fname:str = None
-                args:dict = None
+                fname:str = ''
                 err:str = f"tool not found."
                 try:
                     func:Function = tool.function
                     fname:str = func.name
                     err:str = f"tool not found: '{fname}'"
                     args:dict = json.loads(func.arguments)
-                    service:QuartServiceBase = self.get_service( fname )
+                    service:QuartServiceBase|None = self.get_service( fname )
                     if service:
                         logger.info(f"id:{fid} Func:{service.name} args:{args}")
                         tools.append( (fid, service, args) )
@@ -87,7 +99,7 @@ class OpenAITools(ServiceSchema):
             pass
 
         for fid, service, args in tools:
-            ret = service.call(args, messages=messages)
+            ret,code = service.call(args, messages=messages)
             result.append( {'role':'tool', 'tool_call_id':fid, 'content':ret} )
         return result
 

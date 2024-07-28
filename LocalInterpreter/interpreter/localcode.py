@@ -2,6 +2,7 @@ import sys
 import os,shutil
 import re
 import asyncio
+from asyncio import AbstractEventLoop as EvLoop
 from asyncio.subprocess import Process, create_subprocess_exec, create_subprocess_shell, PIPE, DEVNULL
 from concurrent.futures import ThreadPoolExecutor
 from asyncio import Condition
@@ -21,13 +22,13 @@ def escape_control_chars(text):
     # 制御文字をエスケープ
     return re.sub(r'[\n\r\t]', lambda x: repr(x.group(0)).strip("'"), text)
 
-async def arun( cmd: list[str]=None, cwd:str=None ):
+async def arun( cmd: list[str], cwd:str|None=None ):
     proc:Process = await create_subprocess_exec( *cmd, stdout=PIPE, stderr=DEVNULL, cwd=cwd )
     stdout,stderr = await proc.communicate()
-    retcode:int = proc.returncode
+    retcode:int = proc.returncode if proc.returncode else 999
     return retcode, stdout.decode(), stderr.decode()
 
-def write_to_textfile( filepath:str, content:list[str], mode:int=None ):
+def write_to_textfile( filepath:str, content:list[str], mode:int|None=None ):
     if isinstance(content,list):
         with open( filepath, "w") as stream:
             for line in content:
@@ -47,8 +48,8 @@ def read_time( dirpath:str ):
     except:
         return None
 
-def write_time( dirpath:str, tm:float=None ):
-    ret:float = None
+def write_time( dirpath:str, tm:float|None=None ) ->float|None:
+    ret:float|None = None
     try:
         if not isinstance(tm,float):
             tm = time.time()
@@ -104,7 +105,7 @@ class CodeRepo:
     def _th_get_script(self, name ):
         if not os.path.isdir( self.word_dir_top ):
             raise ValueError( f"parent dir {self.word_dir_top} is not directory")
-        content:list[str] = script_map.get(name)
+        content:list[str]|None = script_map.get(name)
         if not isinstance(content,list):
             raise ValueError( f"script {name} is not defined")
         filepath = os.path.join( self.word_dir_top, name)
@@ -122,7 +123,7 @@ class CodeRepo:
 
     def _th_reload_session(self):
         for dirpath in glob.glob( os.path.join(self.word_dir_top,'*')):
-            tm:float = read_time(dirpath)
+            tm:float|None = read_time(dirpath)
             if isinstance(tm,float) and tm>0:
                 logger.info(f"[Repo]reload {dirpath}")
                 sessionId:str = os.path.basename(dirpath)
@@ -159,7 +160,7 @@ class CodeRepo:
             logger.debug(f"[Repo]exec {scrpath}")
             proc:Process = await create_subprocess_exec( scrpath, stdout=PIPE, stderr=DEVNULL, cwd=self.word_dir_top )
             stdout,stderr = await proc.communicate()
-            code:int = proc.returncode
+            code:int = proc.returncode if proc.returncode else 999
             logger.debug(f"{stdout.decode()}")
             logger.debug(f"exit:{code}")
             # セッションディレクトリをリロード
@@ -175,30 +176,35 @@ class CodeRepo:
         os.makedirs( cwd, exist_ok=False )
         return (uniq,cwd)
 
-    async def get_session(self,sessionId:str=None):
+    def exists_session(self,sessionId:str) ->EvLoop|None:
+        session:CodeSession|None = self.session_list.get(sessionId) if sessionId else None
+        return session.event_loop if session else None
+
+    async def get_session(self,sessionId:str|None=None):
         await self.setup()
         async with self.lock:
             # 既存にあるか？
-            session = self.session_list.get(sessionId)
+            session:CodeSession|None = self.session_list.get(sessionId) if sessionId else None
             if session is None or not isinstance(session,CodeSession):
                 # 無いから新規作成
                 loop = asyncio.get_running_loop()
                 new_id, cwd = await loop.run_in_executor( self.pool, self._th_build_new_directory )
                 logger.info(f"[Repo]new session {new_id} {cwd}")
-                session:CodeSession = CodeSession( self, new_id, cwd )
+                session = CodeSession( self, new_id, cwd )
                 self.session_list[new_id] = session
             await session.start()
             return session
 
 class CodeSession:
-    def __init__(self, parent:CodeRepo, sessionId, wd, tm:float=None ):
+    def __init__(self, parent:CodeRepo, sessionId:str, wd:str, tm:float|None=None ):
         if not os.path.isdir( wd ):
             raise ValueError( f"parent dir {wd} is not directory")
         self.lock:Condition = Condition()
         self.parent:CodeRepo = parent
         self.sessionId:str = sessionId
-        self.cwd = wd
-        self.process = None
+        self.cwd:str = wd
+        self.event_loop:EvLoop|None = None
+        self.process:Process|None = None
         self.ps1 = ">>>"+self.sessionId+">>>"
         self.ps2 = "..."+self.sessionId+"..."
         self.lasttime:float = tm if isinstance(tm,float) else time.time()
@@ -214,7 +220,8 @@ class CodeSession:
             logger.info(f"[Session:{self.sessionId}] start")
             scrpath:str = await self.parent.get_start_script()
             try:
-                self.process:Process = await create_subprocess_exec( scrpath, stdin=PIPE, stdout=PIPE, stderr=DEVNULL, cwd=self.cwd)
+                self.event_loop = asyncio.get_running_loop()
+                self.process = await create_subprocess_exec( scrpath, stdin=PIPE, stdout=PIPE, stderr=DEVNULL, cwd=self.cwd)
                 await self.send_command( "import sys" )
                 await self.send_command( f"sys.ps2='\\n{self.ps2}\\n'" )
                 await self.send_command( f"sys.ps1='\\n{self.ps1}\\n'" )
@@ -224,15 +231,24 @@ class CodeSession:
             except:
                 await self.stop()
 
-    def th_send_command(self,command):
+    def th_send_command(self,command:str):
         # コマンドを送信
         self.lasttime:float = time.time()
-        self.process.stdin.write(command.encode())
-        self.process.stdin.write('\n'.encode())
+        if self.process:
+            self.process.stdin.write(command.encode())
+            self.process.stdin.write('\n'.encode())
 
-    async def send_command(self,command):
+    async def send_command(self,command:str):
         loop = asyncio.get_running_loop()
         await loop.run_in_executor( self.parent.pool, self.th_send_command, command )
+
+    def th_get_output(self) ->bytes:
+        self.lasttime:float = time.time()
+        if self.process:
+            data = self.event_loop.run_until_complete( self.process.stdout.readline() )
+            return data
+        else:
+            return b''
 
     async def get_output(self):
         # 結果を取得
@@ -241,7 +257,18 @@ class CodeSession:
             self.lasttime:float = time.time()
             if self.process.stdout.at_eof():
                 break
-            line = (await self.process.stdout.readline()).decode()
+            data:bytes
+            loop = asyncio.get_running_loop()
+            if self.event_loop is loop:
+                #print(f"[LOOP] same loop")
+                data = await self.process.stdout.readline()
+            elif self.event_loop.is_running():
+                #print(f"[LOOP] other running loop")
+                data = await loop.run_in_executor( self.parent.pool, self.th_get_output )
+            else:
+                print(f"[LOOP] error other closed loop")
+                data = await self.process.stdout.readline()
+            line = data.decode()
             self.lasttime:float = time.time()
             logger.debug(f"[dbg]{escape_control_chars(line)}")
             sline=line.strip()
@@ -260,7 +287,7 @@ class CodeSession:
         out = await self.get_output()
         return out
 
-    async def download_from_url(self, url ):
+    async def download_from_url(self, url:str ) ->tuple[str|None,str]:
         loop = asyncio.get_running_loop()
         filename, mesg = await loop.run_in_executor( self.parent.pool, web.download_from_url, url, self.cwd  )
         return filename, mesg

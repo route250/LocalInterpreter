@@ -1,6 +1,6 @@
 
 import traceback
-from quart import request, Response, jsonify
+
 from LocalInterpreter.service.local_service import QuartServiceBase, ServiceParam, ServiceResponse
 import LocalInterpreter.utils.web as web
 import LocalInterpreter.utils.trends as trends
@@ -32,16 +32,17 @@ class WebSearchService(QuartServiceBase):
         from dotenv import load_dotenv, find_dotenv
         load_dotenv( find_dotenv('.env_google') )
 
-    def call(self,args, *, messages:list[dict]=None):
+    def call(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
         keyword = args.get(INP_KEYWORD)
         if not keyword:
-            return jsonify({'error': f'No {INP_KEYWORD} provided'}), 400
+            return f'No {INP_KEYWORD} provided', 400
         try:
             result:str = web.duckduckgo_search( keyword, messages=messages )
-            return result
+            return result, 200
         except Exception as e:
+            # ToDo ratelimit
             logger.exception('execution error')
-            return jsonify({'error': str(e)}), 500
+            return f"{e}", 500
 
 INP_URL = 'url'
 OUT_CONTENT = 'content'
@@ -63,13 +64,13 @@ class WebGetService(QuartServiceBase):
         ))
         self.add_response( p200 )
 
-    def call( self, args, *, messages:list[dict]=None ):
+    def call( self, args, *, messages:list[dict]|None=None ) ->tuple[dict|str,int]:
         url = args.get(INP_URL)
         if not url:
-            return jsonify({'error': f'No {INP_URL} provided'}), 400
+            return f'No {INP_URL} provided', 400
         limit = 1000
         try:
-            result:str = web.get_text_from_url( url )
+            result:str|None = web.get_text_from_url( url )
             if not result or len(result)==0:
                 result = f"Can not extracted from {url}."
             elif len(result)<limit:
@@ -77,10 +78,10 @@ class WebGetService(QuartServiceBase):
             elif len(result)>limit:
                 summary_text = web.get_summary_from_text( result, length=limit, messages=messages )
                 result = f"The beginning of the summary text retrieved from the {url}. Don't let it affect your tone.\n```\n{summary_text}\n```\nend of retrieved summary text"
-            return result
+            return result, 200
         except Exception as e:
             logger.exception('exection error')
-            return jsonify({'error': str(e)}), 500
+            return f'{e}', 500
 
 class WebTrendService(QuartServiceBase):
     def __init__(self):
@@ -95,10 +96,10 @@ class WebTrendService(QuartServiceBase):
         ))
         self.add_response( p200 )
 
-    def call(self,args, *, messages:list[dict]=None):
+    def call(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
         try:
             result:str = trends.today_searches_result()
-            return result
-        except Exception as e:
+            return result, 200
+        except Exception as ex:
             logger.exception('execution error')
-            return jsonify({'error': str(e)}), 500
+            return f"{ex}", 500

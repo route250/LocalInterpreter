@@ -1,9 +1,9 @@
 
 
-def idt(lv):
+def idt(lv:int) ->str:
     return "  "*lv
 
-def to_yaml(indent: str, obj, idx: int = -1):
+def to_yaml(indent: str, obj:dict[str,object]|list[object]|tuple[object], idx: int = -1):
     if isinstance(obj, dict):
         for key, value in obj.items():
             if isinstance(value, (str, int, float)):
@@ -34,13 +34,13 @@ def to_yaml(indent: str, obj, idx: int = -1):
         raise TypeError(f"Unsupported type: {type(obj)}")
 
 class ServiceParam:
-    def __init__(self,name:str,type:str='string',description:str=None,example:str=None):
+    def __init__(self,name:str,type:str='string',description:str|None=None,example:str|None=None):
         self.name:str = name
         self.type:str = type
         self.description = description
         self.example = example
 
-    def to_yaml(self, lv ):
+    def to_yaml(self, lv:int ):
         indent:str = idt(lv)
         yield f"{indent}{self.name}:"
         yield f"{indent}  type: {self.type}"
@@ -56,7 +56,7 @@ class ServiceResponse:
     def add_param( self, param:ServiceParam ):
         self.params.append(param)
 
-    def to_yaml(self, lv ):
+    def to_yaml(self, lv:int ):
         indent:str = idt(lv)
         yield f"{indent}'{self.code}':"
         yield f"{indent}  description: {self.description}"
@@ -69,7 +69,7 @@ class ServiceResponse:
             yield from param.to_yaml( lv+5 )
 
 class BaseService:
-    def __init__(self, method ):
+    def __init__(self, method:str ):
         self.method = method
         self.summary = ""
         self.description = ""
@@ -94,7 +94,23 @@ class BaseService:
     def add_response(self, resp:ServiceResponse ):
         self.responses[ resp.code ] = resp
 
-    def to_yaml(self, lv ):
+    def to_response_json(self, data:str|dict, code:int ) ->tuple[dict,int]:
+        response_dict = {}
+        response_list:ServiceResponse|None = self.responses.get(code)
+        if response_list is None:
+            pass
+        elif isinstance(data,dict):
+            for res_param in response_list.params:
+                param_data = data.get(res_param.name)
+                # ToDo 型を考慮しなくては
+                response_dict[res_param.name] = param_data
+        else:
+            for res_param in response_list.params:
+                response_dict[res_param.name] = f"{data}"
+        return response_dict, code
+
+
+    def to_yaml(self, lv:int ):
         indent:str = idt(lv)
         yield f"{indent}summary: {self.summary}"
         yield f"{indent}description: {self.description}"
@@ -135,7 +151,7 @@ class BaseService:
         }
         return funcs
 
-class PythonService(BaseService):
+class oldPythonService(BaseService):
     def __init__(self):
         super().__init__('post')
         self.params.append( ServiceParam(
@@ -172,13 +188,13 @@ class ServiceSchema:
         self.servers['http://127.0.0.1:5000'] = 'localserver'
 
     def add_service(self, path:str, service:BaseService):
-        method_dict:dict[str,BaseService] = self.path_dict.get(path)
+        method_dict:dict[str,BaseService]|None = self.path_dict.get(path)
         if method_dict is None:
             method_dict = {}
             self.path_dict[path] = method_dict
         method_dict[service.method] = service
 
-    def to_yaml(self, request_url:str=None):
+    def to_yaml(self, request_url:str|None=None):
         yield "openai: 3.0.0"
         yield "info:"
         yield f"  title: {self.title}"
@@ -208,7 +224,7 @@ class ServiceSchema:
 
 def main():
     # テスト用の辞書データ
-    data = {
+    data:dict[str,object] = {
         'name': 'AI',
         'active': True,
         'details': {
@@ -228,7 +244,7 @@ def main():
 
     sh:ServiceSchema = ServiceSchema()
     sh.init()
-    sh.add_service( 'execute', PythonService() )
+    sh.add_service( 'execute', oldPythonService() )
 
     for line in sh.to_yaml():
         print( line )
