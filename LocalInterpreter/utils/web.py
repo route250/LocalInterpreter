@@ -23,7 +23,6 @@ from googleapiclient.discovery import build, Resource, HttpError
 from duckduckgo_search import DDGS
 from duckduckgo_search.exceptions import DuckDuckGoSearchException, RatelimitException, TimeoutException
 
-from LocalInterpreter.service.local_service import get_loop
 from LocalInterpreter.utils.openai_util import to_openai_llm_model, get_max_input_token, count_token, summarize_web_content, summarize_text
 import LocalInterpreter.utils.lxml_util as Xu
 
@@ -110,7 +109,6 @@ async def a_fetch_html(url:str) ->tuple[str|bytes,str|None]:
         raise ex
 
 def fetch_html(url:str) ->tuple[str|bytes,str|None]:
-    loop = get_loop()
     return asyncio.run( a_fetch_html(url) )
 
 def duckduckgo_search( keyword, *, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->str:
