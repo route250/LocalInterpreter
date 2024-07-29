@@ -1,6 +1,7 @@
 import sys
-import os,shutil
+import os,shutil,platform
 import re
+import json
 import asyncio
 from asyncio import AbstractEventLoop as EvLoop
 from asyncio.subprocess import Process, create_subprocess_exec, create_subprocess_shell, PIPE, DEVNULL
@@ -17,6 +18,42 @@ import logging
 logger = logging.getLogger('LocalCode')
 
 TIMEFILE='.lastupdatetime'
+
+
+def get_linux_info():
+    # /etc/os-release から情報を取得
+    try:
+        with open("/etc/os-release") as f:
+            info = {}
+            for line in f:
+                line = line.strip()
+                if line:
+                    key, value = line.split("=", 1)
+                    info[key] = value.strip('"')
+            os_name = info.get("NAME", "Unknown")
+            os_version = info.get("VERSION", "Unknown")
+            return f"{os_name} {os_version}"
+    except FileNotFoundError:
+        return "Linux (info not available)"
+
+def get_os_info():
+    os_type = platform.system()
+
+    if os_type == 'Linux':
+        os_info = get_linux_info()
+    elif os_type == 'Darwin':
+        os_info = f"macOS {platform.mac_ver()[0]}"
+    elif os_type == 'Windows':
+        os_info = f"Windows {platform.win32_ver()[0]}"
+    else:
+        os_info = f"Unknown OS: {os_type}"
+
+    return os_info
+
+def get_python_info():
+    version = platform.python_version()
+    cpu = platform.processor()
+    return f"Python {version} {cpu}"
 
 def escape_control_chars(text):
     # 制御文字をエスケープ
@@ -176,7 +213,7 @@ class CodeRepo:
         os.makedirs( cwd, exist_ok=False )
         return (uniq,cwd)
 
-    def exists_session(self,sessionId:str) ->EvLoop|None:
+    def get_event_loop(self,sessionId:str) ->EvLoop|None:
         session:CodeSession|None = self.session_list.get(sessionId) if sessionId else None
         return session.event_loop if session else None
 
@@ -222,7 +259,7 @@ class CodeSession:
             try:
                 self.event_loop = asyncio.get_running_loop()
                 self.process = await create_subprocess_exec( scrpath, stdin=PIPE, stdout=PIPE, stderr=DEVNULL, cwd=self.cwd)
-                await self.send_command( "import sys" )
+                await self.send_command( "import sys,os,json" )
                 await self.send_command( f"sys.ps2='\\n{self.ps2}\\n'" )
                 await self.send_command( f"sys.ps1='\\n{self.ps1}\\n'" )
                 out = await self.get_output()
@@ -283,6 +320,9 @@ class CodeSession:
         return ''.join(stdout)
 
     async def command(self, command ):
+        if command and '\n' in command:
+            cmd = json.dumps(command,ensure_ascii=False)
+            command = f"exec({cmd})"
         await self.send_command( command )
         out = await self.get_output()
         return out

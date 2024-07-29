@@ -15,7 +15,6 @@ from LocalInterpreter.service.web_service import WebGetService, WebSearchService
 import logging
 logger = logging.getLogger('OpenAIsrv')
 
-OPENAI_DEFAULT_MODEL='gpt-4o-mini'
 class OpenAITools(ServiceSchema):
 
     def __init__(self):

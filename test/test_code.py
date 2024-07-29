@@ -15,16 +15,20 @@ def test_code():
     code_list.append( 'print("hello wold!")' )
    # code_list.append( """for i in range(10): print( f"{i}" ) """ )
     code_list.append( """
-    print( "foo!" )
-    print( "bar!" )
+print( "foo!" )
+print( "bar!" )
     """ )
     code_list.append( """
-    current_directory = os.getcwd()
-    print(f"Current Directory: {current_directory}")
-    files = os.listdir(current_directory)    
-    print("Files in the current directory:")
-    for file in files:
-        print(file)
+import os,sys
+                     b
+current_directory = os.getcwd()
+print(f"Current Directory: {current_directory}")
+files = os.listdir(current_directory)    
+print("Files in the current directory:")
+for file in files:
+    print(file)
+
+print("--done--")
     """)
     
     pys:PythonService = PythonService()

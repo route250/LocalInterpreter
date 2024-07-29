@@ -3,7 +3,7 @@ import asyncio
 from asyncio import AbstractEventLoop as EvLoop
 
 from LocalInterpreter.service.local_service import QuartServiceBase, ServiceParam, ServiceResponse
-from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
+from LocalInterpreter.interpreter.localcode import get_os_info, get_python_info, CodeRepo, CodeSession
 import LocalInterpreter.utils.web as web
 
 import logging
@@ -13,7 +13,9 @@ class PythonService(QuartServiceBase):
     def __init__(self, *, directory:str|None=None):
         super().__init__('post')
         self.summary = 'python interpreter'
-        self.description = 'python interpreter'
+        self.os_info = get_os_info()
+        self.python_info = get_python_info()
+        self.description = f"python interpreter of {self.python_info} {self.os_info}.\n"
         if not isinstance(directory,str):
             directory = './tmp'
         self.repo:CodeRepo = CodeRepo( directory )
@@ -24,7 +26,7 @@ class PythonService(QuartServiceBase):
             ))
         self.params.append( ServiceParam(
             'code', 'string',
-            'The Python code to execute.',
+            'The specified code is executed by the exec(...) function in the Python interpreter.',
             '\"print(\'Hello, World!\')\"',
         ) )
         self.params.append( ServiceParam(
