@@ -1,6 +1,7 @@
 
 import sys,os
-
+import asyncio
+from asyncio import AbstractEventLoop as EvLoop
 import logging
 sys.path.append(os.getcwd())
 from LocalInterpreter.service.local_service import QuartServerBase, QuartServiceBase
@@ -20,7 +21,6 @@ print( "bar!" )
     """ )
     code_list.append( """
 import os,sys
-                     b
 current_directory = os.getcwd()
 print(f"Current Directory: {current_directory}")
 files = os.listdir(current_directory)    
@@ -30,6 +30,14 @@ for file in files:
 
 print("--done--")
     """)
+    code_list.append( """
+import os,sys
+                     b
+print("--done--")
+    """)
+
+    prg1 = code_list[0]
+
     
     pys:PythonService = PythonService()
 
@@ -38,12 +46,31 @@ print("--done--")
             'code': prg
         }
         res_dict, code = pys.call( param )
-        print(res_dict)
-        sessionId = res_dict.get('sessionId')
-        output = res_dict.get('stdout')
+        if isinstance(res_dict,dict):
+            print(res_dict)
+            sessionId = res_dict.get('sessionId')
+            output = res_dict.get('stdout')
+        else:
+            sessionId = "-"
+            output = res_dict
         print(f"\n---------------\nsessionId:{sessionId} code:{code}")
         print(f"{output}")
         print("-------------------------")
+
+class dmydata:
+    def __init__(self):
+        self.pys: PythonService = None
+    async def setup(self):
+        self.pys = PythonService()
+
+def xxx():
+
+    dmy:dmydata = dmydata()
+    asyncio.run( dmy.setup() )
+
+    prg = 'print("hello wold! abc abc")'
+    out, code = dmy.pys.call( { 'code':prg } )
+    print(out)
 
 class BPython(InteractiveInterpreter):
     def __init__(self, locals=None):
@@ -80,4 +107,5 @@ def main():
 
 if __name__ == "__main__":
     test_code()
+    xxx()
     #main()

@@ -78,7 +78,7 @@ class PythonService(QuartServiceBase):
 
     def call(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
         sessionId:str|None = args.get('sessionId')
-        loop:EvLoop = self.repo.exists_session(sessionId)
+        loop:EvLoop = self.repo.get_event_loop(sessionId)
         if loop is None:
             try:
                 loop = asyncio.get_running_loop()

@@ -31,7 +31,9 @@ def get_linux_info():
                     key, value = line.split("=", 1)
                     info[key] = value.strip('"')
             os_name = info.get("NAME", "Unknown")
-            os_version = info.get("VERSION", "Unknown")
+            os_version = info.get("VERSION_ID")
+            if os_version is None:
+                os_version = info.get("VERSION", "Unknown")
             return f"{os_name} {os_version}"
     except FileNotFoundError:
         return "Linux (info not available)"
@@ -124,6 +126,7 @@ class CodeRepo:
         if not os.path.isdir( parent ):
             raise ValueError( f"parent dir {parent} is not directory")
         self.lock:Condition = Condition()
+        self.loop:EvLoop = None
         self.pool:ThreadPoolExecutor = ThreadPoolExecutor( max_workers=1 )
         self.word_dir_top = os.path.abspath(parent)
         self._flg_setup:bool = False
@@ -190,7 +193,7 @@ class CodeRepo:
                 return
             self._flg_setup = True
             # 処理用スクリプト作成
-            loop = asyncio.get_running_loop()
+            self.loop = loop = asyncio.get_running_loop()
             await loop.run_in_executor( self.pool, self._th_setup_scripts )
             # python仮想環境を構築
             scrpath:str = await self.get_script( SCR_BUILD )
@@ -214,8 +217,8 @@ class CodeRepo:
         return (uniq,cwd)
 
     def get_event_loop(self,sessionId:str) ->EvLoop|None:
-        session:CodeSession|None = self.session_list.get(sessionId) if sessionId else None
-        return session.event_loop if session else None
+        # session:CodeSession|None = self.session_list.get(sessionId) if sessionId else None
+        return self.loop # if session else None
 
     async def get_session(self,sessionId:str|None=None):
         await self.setup()
@@ -232,6 +235,9 @@ class CodeRepo:
             await session.start()
             return session
 
+    async def run_in_executor(self, func, *args ):
+        return await self.loop.run_in_executor( self.pool, func, *args )
+
 class CodeSession:
     def __init__(self, parent:CodeRepo, sessionId:str, wd:str, tm:float|None=None ):
         if not os.path.isdir( wd ):
@@ -240,13 +246,18 @@ class CodeSession:
         self.parent:CodeRepo = parent
         self.sessionId:str = sessionId
         self.cwd:str = wd
-        self.event_loop:EvLoop|None = None
         self.process:Process|None = None
         self.ps1 = ">>>"+self.sessionId+">>>"
         self.ps2 = "..."+self.sessionId+"..."
         self.lasttime:float = tm if isinstance(tm,float) else time.time()
 
     async def start(self):
+        if asyncio.get_running_loop() == self.parent.loop:
+            await self._th_start()
+        else:
+            await self.parent.run_in_executor( self._th_start )
+
+    async def _th_start(self):
         if not os.path.isdir( self.cwd ):
             raise ValueError( f"cwd {self.cwd} is not directory")
         self.lasttime:float = time.time()
@@ -257,7 +268,6 @@ class CodeSession:
             logger.info(f"[Session:{self.sessionId}] start")
             scrpath:str = await self.parent.get_start_script()
             try:
-                self.event_loop = asyncio.get_running_loop()
                 self.process = await create_subprocess_exec( scrpath, stdin=PIPE, stdout=PIPE, stderr=DEVNULL, cwd=self.cwd)
                 await self.send_command( "import sys,os,json" )
                 await self.send_command( f"sys.ps2='\\n{self.ps2}\\n'" )
@@ -279,32 +289,25 @@ class CodeSession:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor( self.parent.pool, self.th_send_command, command )
 
-    def th_get_output(self) ->bytes:
+    async def get_output(self):
         self.lasttime:float = time.time()
         if self.process:
-            data = self.event_loop.run_until_complete( self.process.stdout.readline() )
+            if asyncio.get_running_loop()==self.parent.loop:
+                data = await self._th_get_outputs()
+            else:
+                data = self.parent.run_in_executor( self.process.stdout._th_get_outputs )
             return data
         else:
-            return b''
+            return ''
 
-    async def get_output(self):
+    async def _th_get_outputs(self):
         # 結果を取得
         stdout = []
         while True:
             self.lasttime:float = time.time()
             if self.process.stdout.at_eof():
                 break
-            data:bytes
-            loop = asyncio.get_running_loop()
-            if self.event_loop is loop:
-                #print(f"[LOOP] same loop")
-                data = await self.process.stdout.readline()
-            elif self.event_loop.is_running():
-                #print(f"[LOOP] other running loop")
-                data = await loop.run_in_executor( self.parent.pool, self.th_get_output )
-            else:
-                print(f"[LOOP] error other closed loop")
-                data = await self.process.stdout.readline()
+            data:bytes =  await self.process.stdout.readline()
             line = data.decode()
             self.lasttime:float = time.time()
             logger.debug(f"[dbg]{escape_control_chars(line)}")
