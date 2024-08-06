@@ -59,7 +59,7 @@ def trim_json( data ):
         # データがリスト、タプル、辞書でない場合はそのまま返す
         return data
 
-def count_token( text, model:str|None=None ) ->int:
+def count_token( text:str, model:str|None=None ) ->int:
     enc = tiktoken.encoding_for_model( to_openai_llm_model(model) )
     tokens = enc.encode(text)
     return len(tokens)
