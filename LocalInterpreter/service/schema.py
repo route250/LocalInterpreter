@@ -1,4 +1,5 @@
 
+from openai.types.chat import ChatCompletionToolParam
 
 def idt(lv:int) ->str:
     return "  "*lv
@@ -131,13 +132,13 @@ class BaseService:
     def get_func_name(self)->str:
         return self.summary.replace(" ","_").replace("'","_")
 
-    def to_func(self) ->dict:
+    def to_func(self) ->ChatCompletionToolParam:
         props = {}
         required = []
         for param in self.params:
             props[param.name] = { "type":param.type, "description": param.description }
             required.append(param.name)
-        funcs = {
+        funcs:ChatCompletionToolParam = {
             "type": "function",
             "function": {
                 "name": self.get_func_name(),
@@ -215,7 +216,7 @@ class ServiceSchema:
                 yield f"    {method}:"
                 yield from service.to_yaml( 3 )
 
-    def to_tools(self) ->list[dict]:
+    def to_tools(self) ->list[ChatCompletionToolParam]:
         tools = []
         for path,method_dict in self.path_dict.items():
             for method,service in method_dict.items():

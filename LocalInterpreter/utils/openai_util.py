@@ -22,6 +22,7 @@ OPENAI_DEFAULT_MODEL='gpt-4o-mini'
 def to_openai_llm_model( model:str|None=None ) ->str:
     if not isinstance(model,str) or len(model)==0:
         return OPENAI_DEFAULT_MODEL
+    logger.warn(f'invalid model {model}')
     return model
 
 def get_max_input_token( model:str|None ) ->int:
@@ -30,6 +31,8 @@ def get_max_input_token( model:str|None ) ->int:
         return 128*1024
     if model.startswith('gpt-3.5'):
         return 16*1024
+    logger.warn(f'invalid model {model}')
+    return 4*1024
 
 def setup_openai_api():
     """
@@ -39,8 +42,11 @@ def setup_openai_api():
     dotenv_path = os.path.join(Path.home(), 'Documents', 'openai_api_key.txt')
     load_dotenv(dotenv_path)
     
-    api_key = os.getenv("OPENAI_API_KEY")
-    logger.info(f"OPENAI_API_KEY={api_key[:5]}***{api_key[-3:]}")
+    api_key:str|None = os.getenv("OPENAI_API_KEY")
+    if api_key:
+        logger.info(f"OPENAI_API_KEY={api_key[:5]}***{api_key[-3:]}")
+    else:
+        logger.info(f"OPENAI_API_KEY=")
 
 def trim_json( data ):
     if isinstance( data, (list,tuple) ):
@@ -92,13 +98,13 @@ def summarize_web_content( text:str, *, length:int|None=None, messages:list[dict
 
     return summarize_text( text, prompt=prompt, model=model )
 
-def summarize_text( text:str, *, prompt:str, model:str=None):
+def summarize_text( text:str, *, prompt:str, model:str|None=None):
 
     openai_llm_model = to_openai_llm_model(model)
     openai_timeout:Timeout = Timeout(180.0, connect=5.0, read=15.0)
     openai_max_retries=3
 
-    request_messages = [
+    request_messages:list = [
         { 'role':'user', 'content': prompt }
     ]
     for run in range(openai_max_retries):
@@ -209,7 +215,7 @@ def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_toke
         return new_hists
 
     for i in range(2):
-        tk = count_message_token( text, model=model)
+        tk = count_token( text, model=model)
         if tk < target:
             break
 
@@ -264,14 +270,14 @@ class OpenAI_stream_decorder:
             self.stream_paths[path] = ""
             self.json_mode = True
 
-    def get_iter(self, stream:Stream=None,*,loadfile:str=None,savefile:str=None):
+    def get_iter(self, stream:Stream|None=None,*,loadfile:str|None=None,savefile:str|list|None=None):
         return OpenAI_stream_iterator(parent=self,stream=stream,loadfile=loadfile,savefile=savefile)
 
 class OpenAI_stream_iterator:
-    def __init__(self,parent:OpenAI_stream_decorder,stream:Stream=None,*,loadfile:str=None,savefile:str=None):
+    def __init__(self,parent:OpenAI_stream_decorder,stream:Stream|None=None,*,loadfile:str|None=None,savefile:str|list|None=None):
         self.parent = parent
-        self.savefile:str = None
-        self.savebuffer:list[dict] = None
+        self.savefile:str|None = None
+        self.savebuffer:list[dict]|None = None
         if loadfile:
             self.loadfile = loadfile
             buffer = []
@@ -290,12 +296,12 @@ class OpenAI_stream_iterator:
         else:
             raise ValueError("Either stream or loadfile must be provided")
 
-        self.content:str = None
-        self.buffer:str = None
+        self.content:str|None = None
+        self.buffer:str|None = None
         self.tools_call:list = []
         self.eof:bool = False
         self.json_buffers:dict[str,int] = {k:0 for k in parent.stream_paths.keys()}
-        self.json_parser:JsonStreamParser = JsonStreamParser() if parent.json_mode else None
+        self.json_parser:JsonStreamParser|None = JsonStreamParser() if parent.json_mode else None
         self.created = None
         self.id = None
         self.model = None
@@ -341,7 +347,7 @@ class OpenAI_stream_iterator:
 
             while not self.eof:
 
-                delta_content:str = None
+                delta_content:str|None = None
                 delta_tool_calls = None
 
                 # get next chunk
@@ -447,6 +453,12 @@ class OpenAI_stream_iterator:
             self.json_parser = None
             logger.exception('stream parser error')
             raise ex
+        finally:
+            try:
+                if stream is not None:
+                    stream.close()
+            except:
+                pass
 
     def get_value(self, path):
         if self.json_parser:
@@ -459,8 +471,10 @@ class OpenAI_stream_iterator:
         if self.json_parser:
             content_json = trim_json( self.json_parser.get() )
             content:str = json.dumps( content_json, ensure_ascii=False )
-        else:
+        elif self.content:
             content:str = self.content
+        else:
+            content:str = ''
         result_json:dict = { "role": "assistant", "content": content }
         if self.tools_call:
             a = []

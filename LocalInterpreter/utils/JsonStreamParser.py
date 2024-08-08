@@ -4,6 +4,9 @@ import json
 import logging
 logger = logging.getLogger('JsonParser')
 
+# タイプエイリアスを定義
+JObj = int | float | str | list | tuple | dict
+
 PRE_KEY=1
 IN_KEY=2
 AFTER_KEY=3
@@ -69,7 +72,7 @@ class JsonStreamParser:
                 return True
         return False
 
-    def get(self,path=None):
+    def get(self,path:str|None=None) ->JObj|None:
         obj = None
         if self._stack:
             obj = self._stack[0][1]
@@ -94,7 +97,7 @@ class JsonStreamParser:
                 raise ValueError("invalid key {key} for object {obj}")
             return ""
 
-    def _get_current_path(self):
+    def _get_current_path(self) ->str:
         paths:list = [ self._obj_to_path(s[1],s[2], i) for i,s in enumerate(self._stack[1:])]
         paths.append( self._obj_to_path( self._obj,self._key, len(paths)))
         return ''.join(paths) if len(paths)>0 else ''
@@ -301,7 +304,7 @@ class JsonStreamParser:
                 self._key = len(self._obj)
                 self._phase = PRE_VALUE
             else:
-                raise JsonStreamParseError()
+                raise JsonStreamParseError("invalid fmt",self._pos)
         elif cc=="}":
             val = self._obj
             if self._pop():
@@ -337,7 +340,7 @@ class JsonStreamParser:
                 return 0
 
     @staticmethod
-    def get_value(obj,path):
+    def get_value(obj:JObj|None,path) ->JObj|None:
         if not isinstance(path,str) or path=="":
             return obj
         for key in path.split(SEP):
