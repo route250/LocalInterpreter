@@ -32,10 +32,6 @@ def strip( text:str|None ) ->str:
         return text.strip()
     return ''
 
-def stripE( text:str|None ) ->str:
-    if is_empty(text):
-        return ''
-
 def eq( a:str|None,b:str|None) ->bool:
     if not isinstance(a,str):
         a=''
@@ -43,7 +39,7 @@ def eq( a:str|None,b:str|None) ->bool:
         b=''
     return a==b
 
-def is_empty( text:str ) ->bool:
+def is_empty( text:str|None ) ->bool:
     if isinstance(text,str) and len(text.strip())>0:
         return False
     return True
@@ -100,12 +96,12 @@ def get_elem_list( elem:Elem, name:str ) ->Iterator[Elem]:
         if child.tag == name:
             yield child
 
-def xs( text:str|None ) ->str:
+def xs( text:str|None ) ->str|None:
     if isinstance(text,str) and len(text)>0:
         return text
     return None
 
-def xs_len( text:str|None ) ->str:
+def xs_len( text:str|None ) ->int:
     if isinstance(text,str):
         return len(text)
     return 0
@@ -133,7 +129,7 @@ re_space_replace3:re.Pattern = re.compile(r'\n+')
 re_space_replace4:re.Pattern = re.compile(r'^[\s]*')
 re_space_replace:re.Pattern = re.compile(r'\s+')
 
-def xs_trimA( text:str|None ) ->str:
+def xs_trimA( text:str|None ) ->str|None:
     if isinstance(text,str):
         # atext = re_space_replace1.sub(' ',text)
         # atext = re_space_replace2.sub('\n',atext)
@@ -145,7 +141,7 @@ def xs_trimA( text:str|None ) ->str:
     return None
 
 
-def xs_join( a:str|None, b:str|None ) -> str:
+def xs_join( a:str|None, b:str|None ) -> str|None:
     if xs_is_empty(a):
         return b if not xs_is_empty(b) else None
     elif xs_is_empty(b):
@@ -563,13 +559,13 @@ def to_text(elem:Elem):
         #     text = child_to_text("",elem)
         #     return md_h_map[elem.tag]+trimA(text)+"\n"
 
-        pre:str = md_pre_map.get(elem.tag)
+        pre:str|None = md_pre_map.get(elem.tag)
         text = xs_strip( child_to_text("",elem) )
         if elem.tag == 'a':
-            href:str = elem.get('href')
+            href:str|None = elem.get('href',None)
             if href and ( href.startswith('https://') or href.startswith('http://')):
                 text = f"[{text}]({href.replace(' ','%20')})"
-        post:str = md_post_map.get(elem.tag)
+        post:str|None = md_post_map.get(elem.tag)
         atext = xs_join(pre,text)
         atext = xs_join(atext,post)
         return atext
