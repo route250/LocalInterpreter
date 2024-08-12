@@ -32,12 +32,12 @@ class WebSearchService(QuartServiceBase):
         from dotenv import load_dotenv, find_dotenv
         load_dotenv( find_dotenv('.env_google') )
 
-    def call(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
+    def call(self,args, *, messages:list[dict]|None=None,debug:bool=False) ->tuple[dict|str,int]:
         keyword = args.get(INP_KEYWORD)
         if not keyword:
             return f'No {INP_KEYWORD} provided', 400
         try:
-            result:str = web.duckduckgo_search( keyword, messages=messages )
+            result:str = web.duckduckgo_search( keyword, messages=messages,debug=debug )
             return result, 200
         except Exception as e:
             # ToDo ratelimit
