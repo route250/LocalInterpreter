@@ -2,6 +2,7 @@
 import sys,os
 import re,traceback
 import json
+from openai.types.chat import ChatCompletionMessageParam
 from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError, APITimeoutError
@@ -70,7 +71,7 @@ def count_token( text:str, model:str|None=None ) ->int:
     tokens = enc.encode(text)
     return len(tokens)
 
-def count_message_token( m:dict, model:str|None=None ) ->int:
+def count_message_token( m:dict|ChatCompletionMessageParam, model:str|None=None ) ->int:
     return count_token( json.dumps(m,ensure_ascii=False), model=model )
 
 def is_japanese_text( text:str ):
@@ -120,8 +121,8 @@ def summarize_text( text:str, *, prompt:str, model:str|None=None):
             except Exception as ex:
                 ApiLog.log( request_messages, ex )
                 raise ex
-            summary = response.choices[0].message.content.strip()
-            if len(summary)<len(text):
+            summary = response.choices[0].message.content
+            if summary and len(summary.strip())<len(text):
                 return summary
             else:
                 return text
@@ -136,7 +137,7 @@ def summarize_text( text:str, *, prompt:str, model:str|None=None):
 KEY_SUMMARY_START="---Start conversation summary:"
 KEY_SUMMARY_END="---End of conversation summary---"
 
-def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_tokens:int=8000, summary_tokens:int=2000, keep_tokens:int=1000, keep_num:int=10, model:str=None ):
+def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_tokens:int=8000, summary_tokens:int=2000, keep_tokens:int=1000, keep_num:int=10, model:str|None=None ):
 
     model = to_openai_llm_model(model)
 
@@ -321,7 +322,7 @@ class OpenAI_stream_iterator:
             return text[:p+1], text[p+1:] 
         return "",text
 
-    def _split2(self,flltext:str,ii:int):
+    def _split2(self,flltext,ii:int):
         if not isinstance(flltext,str):
             return 0, ""
         text:str = flltext[ii:]
@@ -463,7 +464,7 @@ class OpenAI_stream_iterator:
     def get_value(self, path):
         if self.json_parser:
             data = trim_json( self.json_parser.get() )
-            if data:
+            if isinstance(data,dict):
                 return data.get(path)
         return None
 
