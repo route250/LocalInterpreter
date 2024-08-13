@@ -1,4 +1,6 @@
 
+from typing import TypedDict, Optional
+
 import sys,os,traceback
 import math
 import re
@@ -9,6 +11,7 @@ from urllib import request
 from urllib.error import URLError, HTTPError
 import mimetypes
 import asyncio
+from asyncio import Task
 import ssl
 import httpx
 from httpx import Response
@@ -23,7 +26,7 @@ from googleapiclient.discovery import build, Resource, HttpError
 from duckduckgo_search import DDGS, AsyncDDGS
 from duckduckgo_search.exceptions import DuckDuckGoSearchException, RatelimitException, TimeoutException
 
-from LocalInterpreter.utils.openai_util import to_openai_llm_model, get_max_input_token, count_token, summarize_web_content, summarize_text
+from LocalInterpreter.utils.openai_util import to_openai_llm_model, get_max_input_token, count_token, summarize_web_content, a_summarize_text
 import LocalInterpreter.utils.lxml_util as Xu
 
 import logging
@@ -31,6 +34,12 @@ logger = logging.getLogger('WebUtil')
 
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
+
+class LinkInfo(TypedDict,total=False):
+    title:str
+    link:str
+    snippet:str
+    err: Optional[str]
 
 # MIMEタイプと拡張子の対応表
 mimetypes.init()
@@ -147,7 +156,9 @@ def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, lang:
 async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
 
     xnum = min( num*4, 100 )
+    t1:float = time.time()
     search_results:list[dict] = await _a_duckduckgo_search_api( keyword, lang=lang, num=xnum, debug=debug )
+    t2:float = time.time()
     if not isinstance(search_results,list) or len(search_results)==0:
         return []
 
@@ -205,19 +216,37 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=Non
     # check_results = await asyncio.gather( *tasks )
     # results = [ r for r in check_results if r ]
 
+    t3:float = time.time()
     results=[]
+    tasks:list[Task] =[ asyncio.create_task( _a_th_duckduckgo_search( item, prompt_fmt=prompt, lang=lang, debug=debug ) ) for item in search_results ]
+    t4:float = time.time()
     i=0
-    for item in search_results:
-        res, ok = await _a_th_duckduckgo_search( item, prompt_fmt=prompt, lang=lang, debug=debug )
-        if res:
-            if ok:
-                results.insert(i,res)
-                i+=1
-                if i>=num:
-                    break
-            else:
-                results.append(res)
-
+    for idx, task in enumerate(tasks):
+        if i<num:
+            print(f"[TASK] await {idx}")
+            res, ok = await task
+            if res:
+                if ok:
+                    results.insert(i,res)
+                    i+=1
+                else:
+                    results.append(res)
+            t5 = time.time()
+            tt:float = t5 - t4
+            if tt>10 and i==0:
+                print(f"[TASK] abort {idx} result {i} {tt}(sec)")
+                i=num
+            elif tt>5 and i>0:
+                print(f"[TASK] abort {idx} result {i} {tt}(sec)")
+                i=num
+        else:
+            print(f"[TASK] cancel {idx}")
+            try:
+                task.cancel()
+            except:
+                pass
+    t6 = time.time()
+    print(f"[TASK] end result {len(results)} {t2-t1}(sec) {t6-t4}(sec) {t6-t1}(sec)")
     return results[:num]
 
 async def _a_th_duckduckgo_search( item:dict, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ):
@@ -275,7 +304,7 @@ async def _a_th_duckduckgo_search( item:dict, *, prompt_fmt:str|None=None, lang:
             prompt = prompt_fmt.replace('{}',text)
         else:
             prompt = prompt_fmt
-        digest = summarize_text( text, prompt=prompt )
+        digest = await a_summarize_text( text, prompt=prompt )
         t3 = time.time()
         logger.info( f"{link} summarize {t3-t2}(sec)")
         # snippetを更新する
@@ -790,10 +819,10 @@ def simple_text_to_chunks( text, chunk_size=2000, overlap=100 ):
         start = end - overlap
     return chunks
 
-def get_summary_from_text( text:str,length:int=1024, *, context_size:int|None=None, overlap:int=500, messages:list[dict]|None=None, model:str|None=None, debug=False) ->str:
+def get_summary_from_text( text:str|None,length:int=1024, *, context_size:int|None=None, overlap:int=500, messages:list[dict]|None=None, model:str|None=None, debug=False) ->str:
 
     if not text or not isinstance(text,str):
-        return text
+        return ""
 
     if not os.environ.get('OPENAI_API_KEY'):
         return text[:length]

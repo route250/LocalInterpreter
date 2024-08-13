@@ -5,7 +5,7 @@ import json
 from openai.types.chat import ChatCompletionMessageParam
 from pathlib import Path
 from dotenv import load_dotenv
-from openai import OpenAI, OpenAIError, APITimeoutError
+from openai import OpenAI, AsyncOpenAI, OpenAIError, APITimeoutError
 from httpx import Timeout
 
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall,ChatCompletionChunk
@@ -113,6 +113,41 @@ def summarize_text( text:str, *, prompt:str, model:str|None=None):
             try:
                 client:OpenAI = OpenAI(timeout=openai_timeout,max_retries=1)
                 response = client.chat.completions.create(
+                        messages=request_messages,
+                        model=openai_llm_model,
+                        temperature=0,
+                )
+                ApiLog.log( request_messages, response )
+            except Exception as ex:
+                ApiLog.log( request_messages, ex )
+                raise ex
+            summary = response.choices[0].message.content
+            if summary and len(summary.strip())<len(text):
+                return summary
+            else:
+                return text
+        except APITimeoutError as ex:
+            logger.error(f"[SUMMARIZE#{run}]ERROR OpenAI {ex.__class__.__name__} {ex}")
+        except Exception as ex:
+            logger.error(f"[SUMMARIZE#{run}]ERROR OpenAI {ex.__class__.__name__} {ex}")
+            pass
+
+    return text
+
+async def a_summarize_text( text:str, *, prompt:str, model:str|None=None):
+
+    openai_llm_model = to_openai_llm_model(model)
+    openai_timeout:Timeout = Timeout(180.0, connect=5.0, read=15.0)
+    openai_max_retries=3
+
+    request_messages:list = [
+        { 'role':'user', 'content': prompt }
+    ]
+    client:AsyncOpenAI = AsyncOpenAI(timeout=openai_timeout,max_retries=1)
+    for run in range(openai_max_retries):
+        try:
+            try:
+                response = await client.chat.completions.create(
                         messages=request_messages,
                         model=openai_llm_model,
                         temperature=0,

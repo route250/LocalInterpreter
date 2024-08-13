@@ -34,4 +34,7 @@ def test_service():
     print(tres)
 
 if __name__ == "__main__":
+    from LocalInterpreter.utils.openai_util import setup_openai_api
+    setup_openai_api()
+
     test_service()
