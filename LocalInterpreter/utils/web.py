@@ -20,7 +20,7 @@ from lxml import etree
 from lxml.etree import _ElementTree as ETree, _Element as Elem
 
 from googleapiclient.discovery import build, Resource, HttpError
-from duckduckgo_search import DDGS
+from duckduckgo_search import DDGS, AsyncDDGS
 from duckduckgo_search.exceptions import DuckDuckGoSearchException, RatelimitException, TimeoutException
 
 from LocalInterpreter.utils.openai_util import to_openai_llm_model, get_max_input_token, count_token, summarize_web_content, summarize_text
@@ -208,7 +208,7 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=Non
     results=[]
     i=0
     for item in search_results:
-        res, ok = await _a_th_duckduckgo_search( item, words, prompt_fmt=prompt, lang=lang, debug=debug )
+        res, ok = await _a_th_duckduckgo_search( item, prompt_fmt=prompt, lang=lang, debug=debug )
         if res:
             if ok:
                 results.insert(i,res)
@@ -220,7 +220,7 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=Non
 
     return results[:num]
 
-async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:str|None=None, lang:str='ja', debug=False ):
+async def _a_th_duckduckgo_search( item:dict, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ):
     # 検索結果からURL
     link = item.get('link')
     logger.debug(f"_a_th_duckduckgo_search URL={link}")
@@ -232,6 +232,9 @@ async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:s
     if err or not html_data:
         item['err'] = err
         return item, False
+    # キーワード分解
+    query = item.get('query','')
+    keyword:list[str] = query.split() if query else []
     if isinstance(html_data,str):
         # キーワードが含まれるか？
         Hit = False
@@ -285,41 +288,55 @@ async def _a_th_duckduckgo_search( item:dict, keyword:list[str], *, prompt_fmt:s
     except Exception as ex:
         raise ex
 
-def convert_keyword( keyword ):
-    www = []
-    if isinstance(keyword,str):
-        www = [ w.strip() for w in keyword.split(' ') if w.strip() ]
-    elif isinstance(keyword,list):
-        www = [ w.strip() for w in keyword if isinstance(w,str) ]
-    words = []
-    groups = [words]
-    after = None
-    before = None
-    for w in www:
-        if w.startswith('before:'):
-            before = w[len('before:'):]
-        elif w.startswith('after:'):
-            after = w[len('after:'):]
-        elif w == "(" or w ==")" or w.upper=="AND":
+def convert_keyword( expression:str|list[str] ) ->tuple[list[str],str|None]:
+    """google風検索条件を変換する"""
+    tokens:list[str] = []
+    if isinstance(expression,str):
+        tokens = [ w.strip() for w in expression.split(' ') if w.strip() ]
+    elif isinstance(expression,list):
+        tokens = [ w.strip() for w in expression if isinstance(w,str) ]
+    after:str|None = None
+    before:str|None = None
+    grp_words:list[str] = []
+    groups:list[list[str]] = [grp_words]
+    for t in tokens:
+        if t.startswith('before:'):
+            before = t[len('before:'):]
+        elif t.startswith('after:'):
+            after = t[len('after:'):]
+        elif t == "(" or t ==")" or t.upper=="AND":
             continue
-        elif w.upper()=="OR":
-            words = []
-            groups.append(words)
+        elif t.upper()=="OR":
+            grp_words = []
+            groups.append(grp_words)
         else:
-            words.append(w)
-    aaa = [ ' '.join(g) for g in groups if g ]
-    return aaa, after, before
+            grp_words.append(t)
 
-async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, debug=False ) ->list[dict]:
-    # google風検索条件を変換する
-    keyword_groups, after, before = convert_keyword( keyword )
-    # リージョン
-    if not isinstance(lang,str) or 'JA' in lang.upper() or 'JP' in lang.upper():
-        region = 'jp-jp'
-    else:
-        region = 'us-en'
+    # 'の'で分割
+    idx:int = 0
+    while idx<len(groups):
+        grp_words = groups[idx]
+        update = False
+        new_words = []
+        for t in grp_words:
+            p:int = t.find('の')
+            if 2<=p and p<len(t)-2:
+                # 「の」で分割して部分を追加
+                for n in t.split('の'):
+                    if len(n.strip())>0:
+                        new_words.append(n.strip())
+                        update = True
+            else:
+                new_words.append(t)
+        idx+=1
+        if update:
+            groups.insert(idx,new_words)
+            idx+=1
+
+    new_expression:list[str] = [ ' '.join(grp_words) for grp_words in groups if grp_words ]
+
     #timelimitの値をYYYY-MM-DD..YYYY-MM-DD形式で、開始日と終了日を指摘することで、任意の期間の検索結果を取得できる。
-    timelimit = None
+    timelimit:str|None = None
     if after:
         if before:
             timelimit = after+".."+before
@@ -327,16 +344,28 @@ async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, 
             timelimit = after+".."
     elif before:
         timelimit = ".." + before
+    return new_expression, timelimit
+
+async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, debug=False ) ->list[dict]:
+    # google風検索条件を変換する
+    keyword_groups, timelimit = convert_keyword( keyword )
+    # リージョン
+    if not isinstance(lang,str) or 'JA' in lang.upper() or 'JP' in lang.upper():
+        region = 'jp-jp'
+    else:
+        region = 'us-en'
+
     logger.info(f"[DUCKDUCKGO] region:{region} input keyword:{keyword}")
-    logger.info(f"[DUCKDUCKGO] search keyword:{keyword_groups} {after}..{before}")
+    logger.info(f"[DUCKDUCKGO] search keyword:{keyword_groups} {timelimit}")
     # クエリ
+    duplicate:dict = {}
     group_results=[]
-    with DDGS() as ddgs:
+    with AsyncDDGS() as ddgs:
         for grp in keyword_groups:
             query = f"{grp} -site:youtube.com -site:facebook.com -site:instagram.com -site:twitter.com"
-            logger.info(f"[DUCKDUCKGO] group:{query} {after}..{before}")
+            logger.info(f"[DUCKDUCKGO] group:{query} {timelimit}")
             try:
-                results = ddgs.text(
+                results = await ddgs.atext(
                     keywords=query,      # 検索ワード
                     region=region,       # リージョン 日本は"jp-jp",指定なしの場合は"wt-wt"
                     safesearch='moderate',     # セーフサーチOFF->"off",ON->"on",標準->"moderate"
@@ -349,21 +378,24 @@ async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, 
                 raise ex
             except Exception as ex:
                 raise ex
-            group_results.append(results)
+            # 重複除去
+            filterd_results = []
+            for item in results:
+                link:str = item.get('href','')
+                if link not in duplicate:
+                    duplicate[link] = 'x'
+                    title:str = item.get('title','')
+                    snippet:str = item.get('body','')
+                    filterd_results.append( {'title':title, 'link':link, 'snippet': snippet, 'query': grp })
+            group_results.append(filterd_results)
     # 結合
-    join_results = []
+    result_json=[]
     maxlen = max( [len(grp) for grp in group_results])
     for i in range(maxlen):
         for grp in group_results:
             if i<len(grp):
-                join_results.append(grp[i])
-    # 変換
-    result_json=[]
-    for item in join_results:
-        title:str = item.get('title','')
-        link:str = item.get('href','')
-        snippet:str = item.get('body','')
-        result_json.append( {'title':title, 'link':link, 'snippet': snippet })
+                item = grp[i]
+                result_json.append(item)
 
     return result_json
 

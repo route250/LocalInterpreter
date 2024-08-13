@@ -1,4 +1,5 @@
-import sys,os
+import sys,os,time
+from datetime import datetime, timedelta
 import logging
 sys.path.append(os.getcwd())
 
@@ -22,12 +23,15 @@ def test_service():
         ChatCompletionAssistantMessageParam( role='assistant', content='ああ、神戸か。いいなぁ、ブラザー。神戸はおしゃれなところが多いし、美味しいものもたくさんあるだろう。何しに行くわけ？' ),
         ChatCompletionUserMessageParam( role='user', content='天気どうだろうか？' )
     ]
+    t = datetime.now() + timedelta(days=1)
+    day = t.strftime('%Y年%m月%d日')
     args = {
-        "keyword":"三宮 天気予報 2024年8月13日"
+        "keyword": f"三宮の天気予報 {day}"
     }
 
     webg:WebSearchService = WebSearchService()
-    webg.call( args, messages=messages,debug=True )
+    tres = webg.call( args, messages=messages,debug=True )
+    print(tres)
 
 if __name__ == "__main__":
     test_service()
