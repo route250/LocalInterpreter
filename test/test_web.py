@@ -10,7 +10,7 @@ def get_html():
     link = 'https://tenki.jp/past/2024/07/weather/'
     keyword = '天気'
     html_bytes,err = web.fetch_html(link)
-    text = web.get_text_from_html( html_bytes, keywords=keyword )
+    text = web.get_text_from_html( html_bytes, url=link, keywords=keyword )
     print(text)
 
 def test_split_text_with_overlap():
@@ -67,7 +67,7 @@ def test_get_text_from_testdata():
             with open( input_text, 'r' ) as stream:
                 actual_text = stream.read()
         #
-        text = web.get_text_from_html( html_bytes, debug=True )
+        text = web.get_text_from_html( html_bytes, url=input_file, debug=True )
         #
         output_file=os.path.join( output_dir, f"{case_name}.md" )
         with open( output_file, 'w' ) as stream:

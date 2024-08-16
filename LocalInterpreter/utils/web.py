@@ -39,6 +39,7 @@ class LinkInfo(TypedDict,total=False):
     title:str
     link:str
     snippet:str
+    query: Optional[str]
     err: Optional[str]
 
 # MIMEタイプと拡張子の対応表
@@ -120,8 +121,8 @@ async def a_fetch_html(url:str) ->tuple[str|bytes,str|None]:
 def fetch_html(url:str) ->tuple[str|bytes,str|None]:
     return asyncio.run( a_fetch_html(url) )
 
-def duckduckgo_search( keyword, *, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->str:
-    result_json:list[dict] = duckduckgo_search_json( keyword, messages=messages, lang=lang, num=num, debug=debug)
+def duckduckgo_search( keyword, *, max_length:int=800, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->str:
+    result_json:list[LinkInfo] = duckduckgo_search_json( keyword, max_length=max_length, messages=messages, lang=lang, num=num, debug=debug)
     result_text = f"# Search keyword: {keyword}\n\n"
     result_text += "# Search result:\n\n"
     if isinstance(result_json,(list,tuple)):
@@ -139,9 +140,9 @@ def duckduckgo_search( keyword, *, messages:list[dict]|None=None, lang:str='ja',
         result_text += "  no results.\n"
     return result_text
 
-def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
+def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, max_length:int=800, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
     # 非同期コンテキスト外の場合
-    return asyncio.run( a_duckduckgo_search_json( keyword, messages=messages, lang=lang, num=num, debug=debug ) )
+    return asyncio.run( a_duckduckgo_search_json( keyword, max_length=max_length, messages=messages, lang=lang, num=num, debug=debug ) )
     # try:
     #     # 現在のイベントループを取得
     #     loop = asyncio.get_running_loop()
@@ -153,11 +154,11 @@ def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, lang:
     # # 非同期関数の場合
     # return loop.run_until_complete( a_duckduckgo_search( keyword, lang=lang, num=num, debug=debug ) )
 
-async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
+async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
 
     xnum = min( num*4, 100 )
     t1:float = time.time()
-    search_results:list[dict] = await _a_duckduckgo_search_api( keyword, lang=lang, num=xnum, debug=debug )
+    search_results:list[LinkInfo] = await _a_duckduckgo_search_api( keyword, lang=lang, num=xnum, debug=debug )
     t2:float = time.time()
     if not isinstance(search_results,list) or len(search_results)==0:
         return []
@@ -200,7 +201,7 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=Non
             target="と会話履歴の内容"
 
         # 短く要約する
-        slen=200
+        slen: int = max_length if isinstance(max_length,int) and max_length>100 else 100
         NOINFO='NoInfo'
         prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword)}"
         prompt = f"{prompt}\n\n# 検索結果のURLから取得したテキスト\n```\n{{}}\n```"
@@ -217,13 +218,14 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=Non
     # results = [ r for r in check_results if r ]
 
     t3:float = time.time()
-    results=[]
+    results:list[LinkInfo]=[]
     tasks:list[Task] =[ asyncio.create_task( _a_th_duckduckgo_search( item, prompt_fmt=prompt, lang=lang, debug=debug ) ) for item in search_results ]
     t4:float = time.time()
     i=0
     for idx, task in enumerate(tasks):
         if i<num:
             print(f"[TASK] await {idx}")
+            res:LinkInfo|None
             res, ok = await task
             if res:
                 if ok:
@@ -233,10 +235,10 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=Non
                     results.append(res)
             t5 = time.time()
             tt:float = t5 - t4
-            if tt>10 and i==0:
+            if tt>30 and i==0:
                 print(f"[TASK] abort {idx} result {i} {tt}(sec)")
                 i=num
-            elif tt>5 and i>0:
+            elif tt>15 and i>0:
                 print(f"[TASK] abort {idx} result {i} {tt}(sec)")
                 i=num
         else:
@@ -249,16 +251,16 @@ async def a_duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=Non
     print(f"[TASK] end result {len(results)} {t2-t1}(sec) {t6-t4}(sec) {t6-t1}(sec)")
     return results[:num]
 
-async def _a_th_duckduckgo_search( item:dict, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ):
+async def _a_th_duckduckgo_search( item:LinkInfo, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ) ->tuple[LinkInfo|None,bool]:
     # 検索結果からURL
     link = item.get('link')
-    logger.debug(f"_a_th_duckduckgo_search URL={link}")
     if not link:
         return None, False
     # htmlを取得して本文を取り出す
     t1 = time.time()
     html_data,err = await a_fetch_html(link)
     if err or not html_data:
+        logger.debug(f"_a_th_duckduckgo_search {err} URL={link}")
         item['err'] = err
         return item, False
     # キーワード分解
@@ -271,16 +273,23 @@ async def _a_th_duckduckgo_search( item:dict, *, prompt_fmt:str|None=None, lang:
             if w in html_data:
                 Hit=True
         if not Hit:
+            err = 'NoKeyword'
+            item['err'] = err
+            logger.debug(f"_a_th_duckduckgo_search {err} URL={link}")
             return item, False
     # htmlからテキスト抽出
-    text = get_text_from_html( html_data, keywords=keyword )
+    text = get_text_from_html( html_data, url=link, keywords=keyword )
     t2 = time.time()
     logger.info( f"{link} get {t2-t1}(sec)")
     if not isinstance(text,str) or len(text.strip())==0:
+        err = 'NoText'
+        item['err'] = err
+        logger.debug(f"_a_th_duckduckgo_search {err} URL={link}")
         return None, False
 
     if prompt_fmt is None:
         # 要約しないそのまま返信
+        logger.debug(f"_a_th_duckduckgo_search PLAIN URL={link}")
         return item, True
 
     # 要約する
@@ -306,16 +315,18 @@ async def _a_th_duckduckgo_search( item:dict, *, prompt_fmt:str|None=None, lang:
             prompt = prompt_fmt
         digest = await a_summarize_text( text, prompt=prompt )
         t3 = time.time()
-        logger.info( f"{link} summarize {t3-t2}(sec)")
         # snippetを更新する
         ok = digest and not 'NoInfo' in digest
         if ok:
             item['snippet'] = digest
+            logger.debug(f"_a_th_duckduckgo_search summarize {t3-t2}(sec) URL={link}")
             return item, ok
         else:
+            logger.debug(f"_a_th_duckduckgo_search Fail {t3-t2}(sec) URL={link}")
             return None, False
     except Exception as ex:
         raise ex
+    return None,False
 
 def convert_keyword( expression:str|list[str] ) ->tuple[list[str],str|None]:
     """google風検索条件を変換する"""
@@ -375,7 +386,7 @@ def convert_keyword( expression:str|list[str] ) ->tuple[list[str],str|None]:
         timelimit = ".." + before
     return new_expression, timelimit
 
-async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, debug=False ) ->list[dict]:
+async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, debug=False ) ->list[LinkInfo]:
     # google風検索条件を変換する
     keyword_groups, timelimit = convert_keyword( keyword )
     # リージョン
@@ -407,10 +418,11 @@ async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, 
                     if r+1 < max_r:
                         if isinstance(ex,RatelimitException) or isinstance(ex,TimeoutException):
                             await asyncio.sleep(1.2)
+                            ddgs._exception_event.clear()
                             continue
                     raise ex
             # 重複除去
-            filterd_results = []
+            filterd_results:list[LinkInfo] = []
             for item in results:
                 link:str = item.get('href','')
                 if link not in duplicate:
@@ -430,13 +442,13 @@ async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, 
 
     return result_json
 
-def google_search_json( keyword, *, lang:str='ja', num:int=5, debug=False ) ->list[dict]:
+def google_search_json( keyword, *, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
 
     # API KEY
     api_key = os.environ.get(ENV_GCP_API_KEY)
     cse_id = os.environ.get(ENV_GCP_CSE_ID)
     if not api_key or not cse_id:
-        return [ { 'error': 'invalid api key or custom search engine id.'} ]
+        return [ { 'err': 'invalid api key or custom search engine id.'} ]
 
     # 結果件数指定
     if isinstance(num,(int,float)):
@@ -454,9 +466,9 @@ def google_search_json( keyword, *, lang:str='ja', num:int=5, debug=False ) ->li
         api = build('customsearch', 'v1', developerKey = api_key)
         result_raw = api.cse().list(q = keyword, cx=cse_id, lr = lr, num = num, start = 1).execute()
     except HttpError as e:
-        return [ { 'error': f'{e.reason}'} ]
+        return [ { 'err': f'{e.reason}'} ]
     except Exception as e:
-        return [ { 'error': f'{e}'} ]
+        return [ { 'err': f'{e}'} ]
 
     if debug:
         try:
@@ -466,7 +478,7 @@ def google_search_json( keyword, *, lang:str='ja', num:int=5, debug=False ) ->li
         except:
             pass
 
-    result_json=[]
+    result_json:list[LinkInfo]=[]
     for item in result_raw.get('items',[]):
         title:str = item.get('title','')
         link:str = item.get('link','')
@@ -477,7 +489,7 @@ def google_search_json( keyword, *, lang:str='ja', num:int=5, debug=False ) ->li
 
 
 def xgoogle_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->str:
-    result_json:list[dict] = google_search_json( keyword, lang=lang, num=num, debug=debug)
+    result_json:list[LinkInfo] = google_search_json( keyword, lang=lang, num=num, debug=debug)
     result_text = f"# Search keyword: {keyword}\n\n"
     result_text += "# Search result:\n\n"
     if isinstance(result_json,(list,tuple)):
@@ -496,7 +508,7 @@ def xgoogle_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->str:
     return result_text
 
 def google_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->str:
-    result_json:list[dict] = google_search_json( keyword, lang=lang, num=num, debug=debug)
+    result_json:list[LinkInfo] = google_search_json( keyword, lang=lang, num=num, debug=debug)
     result_text = f"# Search keyword: {keyword}\n\n"
     result_text += "# Search result:\n\n"
     if isinstance(result_json,(list,tuple)):
@@ -582,7 +594,7 @@ def get_text_from_url(url:str, *, as_raw=False, as_html=False, debug=False) ->st
     try:
         response = request.urlopen(url)
         html_bytes = response.read()
-        return get_text_from_html(html_bytes, as_raw=as_raw, as_html=as_html, debug=debug )
+        return get_text_from_html(html_bytes, url=url, as_raw=as_raw, as_html=as_html, debug=debug )
     except HTTPError as e:
         logger.error(f"HTTP Error: {e.code} - {e.reason}")
     except URLError as e:
@@ -674,7 +686,7 @@ def detect_encoding( buffer:bytes ):
         return 'UTF-8'
     return None
 
-def get_text_from_html(html_data:str|bytes, *, as_raw=False, as_html=False, keywords=None, debug=False) ->str|None:
+def get_text_from_html(html_data:str|bytes, *, url:str, as_raw=False, as_html=False, keywords=None, debug=False) ->str|None:
     try:
         tmpdir = os.path.join('tmp', 'htmldump')
         root = None
@@ -734,7 +746,11 @@ def get_text_from_html(html_data:str|bytes, *, as_raw=False, as_html=False, keyw
                     elif (keywords and not any(w in text for w in keywords)):
                         postfix = "NOWORD"
         except Exception as ex:
-            logger.exception('can not summary html?')
+            err:str = str(ex).lower()
+            if "unicode" in err or "encode" in err:
+                logger.error(f"{err} {url}")
+            else:
+                logger.exception(f'can not summary html? {url}')
             postfix = "ERR"
 
         update_list_with_value(time_list,7,time.time())
@@ -774,7 +790,7 @@ def get_text_from_html(html_data:str|bytes, *, as_raw=False, as_html=False, keyw
         return result
 
     except Exception as ex:
-        logger.exception('can not get text')
+        logger.exception(f'can not get text {url}')
     return None
 
 def text_to_chunks( text:str, chunk_size:int=2000, overlap:int=100 ) ->list[str]:

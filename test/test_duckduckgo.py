@@ -56,7 +56,7 @@ def bench():
     htmlfile = os.path.join( 'testData','web','dump0013_SLOW_raw.html' )
     with open( htmlfile, 'rb') as stream:
         html_bytes = stream.read()
-    text = web.get_text_from_html( html_bytes, debug=True)
+    text = web.get_text_from_html( html_bytes, url=htmlfile, debug=True)
 # Too slow 0.37236499786376953sec
 #  1 0.0325620174407959sec
 #  2 0.0673530101776123sec
