@@ -393,20 +393,22 @@ async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, 
         for grp in keyword_groups:
             query = f"{grp} -site:youtube.com -site:facebook.com -site:instagram.com -site:twitter.com"
             logger.info(f"[DUCKDUCKGO] group:{query} {timelimit}")
-            try:
-                results = await ddgs.atext(
-                    keywords=query,      # 検索ワード
-                    region=region,       # リージョン 日本は"jp-jp",指定なしの場合は"wt-wt"
-                    safesearch='moderate',     # セーフサーチOFF->"off",ON->"on",標準->"moderate"
-                    timelimit=timelimit,       # 期間指定 指定なし->None,過去1日->"d",過去1週間->"w",過去1か月->"m",過去1年->"y"
-                    max_results=num         # 取得件数
-                )
-            except RatelimitException as ex:
-                raise ex
-            except TimeoutException as ex:
-                raise ex
-            except Exception as ex:
-                raise ex
+            max_r:int = 3
+            for r in range(max_r):
+                try:
+                    results = await ddgs.atext(
+                        keywords=query,      # 検索ワード
+                        region=region,       # リージョン 日本は"jp-jp",指定なしの場合は"wt-wt"
+                        safesearch='moderate',     # セーフサーチOFF->"off",ON->"on",標準->"moderate"
+                        timelimit=timelimit,       # 期間指定 指定なし->None,過去1日->"d",過去1週間->"w",過去1か月->"m",過去1年->"y"
+                        max_results=num         # 取得件数
+                    )
+                except Exception as ex:
+                    if r+1 < max_r:
+                        if isinstance(ex,RatelimitException) or isinstance(ex,TimeoutException):
+                            await asyncio.sleep(1.2)
+                            continue
+                    raise ex
             # 重複除去
             filterd_results = []
             for item in results:
