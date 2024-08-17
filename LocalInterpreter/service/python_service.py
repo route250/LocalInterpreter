@@ -1,3 +1,4 @@
+import os
 import json
 import asyncio
 from asyncio import AbstractEventLoop as EvLoop
@@ -17,7 +18,8 @@ class PythonService(QuartServiceBase):
         self.python_info = get_python_info()
         self.description = f"python interpreter of {self.python_info} {self.os_info}.\n"
         if not isinstance(directory,str):
-            directory = './tmp'
+            directory = './tmp/python_service'
+            os.makedirs(directory,exist_ok=True)
         self.repo:CodeRepo = CodeRepo( directory )
         self.params.append( ServiceParam(
             'sessionId', 'string', 

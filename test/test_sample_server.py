@@ -4,7 +4,9 @@ from quart import Quart, request, Response, jsonify
 sys.path.append(os.getcwd())
 from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
 
-repo:CodeRepo = CodeRepo( './tmp' )
+testdir = './tmp/test_sample_server'
+os.makedirs( testdir, exist_ok=True )
+repo:CodeRepo = CodeRepo( testdir )
 app = Quart(__name__)
 
 @app.before_serving

@@ -6,7 +6,9 @@ sys.path.append(os.getcwd())
 from LocalInterpreter.interpreter.localcode import CodeRepo, CodeSession
 
 async def main():
-    repo:CodeRepo = CodeRepo( './tmp' )
+    work_dir = './tmp/test_repl'
+    os.makedirs( work_dir, exist_ok=True)
+    repo:CodeRepo = CodeRepo( work_dir )
     await repo.setup()
     code:CodeSession = await repo.create()
     await code.send_command('print("Hello from custom prompt!")')
@@ -20,7 +22,7 @@ async def main():
     code.stop()
 
 async def main2():
-    work_dir = './tmp'
+    work_dir = './tmp/test_repl'
     os.makedirs( work_dir, exist_ok=True)
     repo:CodeRepo = CodeRepo( work_dir )
     repo.timer_inverval = 1
