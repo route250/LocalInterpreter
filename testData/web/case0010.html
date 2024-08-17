@@ -1,0 +1,1227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html xmlns="https://www.w3.org/1999/xhtml" xml:lang="ja" lang="ja" dir="ltr">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta http-equiv="Content-Script-Type" content="text/javascript" />
+  <title>大阪府 枚方市の天気 : BIGLOBE天気予報</title>
+  <meta name="keywords" content="大阪府,枚方市,天気予報,気温,降水確率,降水量,週間予報,ピンポイント" />
+  <meta name="news_keywords" content="大阪府,枚方市,天気予報,気温,降水確率,降水量,週間予報,ピンポイント">
+  <meta name="description" content="大阪府枚方市のピンポイント天気予報です。枚方市の今日・明日の天気予報、3時間毎の天気予報、週間天気予報、発生中の警報・注意報など気になる天気情報が満載。ブックマークやホームに設定してお出かけ前にチェックしよう！" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta property="og:title" content="大阪府 枚方市の天気 : BIGLOBE天気予報" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://weather.biglobe.ne.jp/pinpoint/27210.html" />
+  <meta property="og:image" content="https://weather.biglobe.ne.jp/pc/img/bweather_icon.png" />
+  <meta property="og:site_name" content="BIGLOBE天気予報" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta property="og:description" content="大阪府枚方市のピンポイント天気予報です。枚方市の今日・明日の天気予報、3時間毎の天気予報、週間天気予報、発生中の警報・注意報など気になる天気情報が満載。ブックマークやホームに設定してお出かけ前にチェックしよう！" />
+
+  <link rel="apple-touch-icon" href="https://weather.biglobe.ne.jp/pc/img/bweather_icon.png">
+<link rel="shortcut icon" href="https://weather.biglobe.ne.jp/pc/img/bweather_icon.png" />
+<link rel="icon" type="image/png" href="https://weather.biglobe.ne.jp/pc/img/bweather_icon.png" />
+
+  <link type="text/css" rel="stylesheet" href="/pc/css/layout_pp.css?v=0.0.2" />
+<link type="text/css" rel="stylesheet" href="/pc/css/afc_pp.css?v=0.0.1" />
+<link type="text/css" rel="stylesheet" href="/pc/css/cad_pp.css?v=0.0.1" />
+<link rel="stylesheet" type="text/css" media="screen,print" href="/pc/common/css/default.css?v=0.0.1">
+<link rel="stylesheet" type="text/css" media="screen,print" href="/pc/common/css/style.css?v=0.0.1">
+
+
+  <script type="text/javascript">
+  //GAタグ用のカテゴリ名
+  var ctgName = 'ピンポイント天気（大阪府 枚方市）';
+  </script>
+  <script type="text/javascript" src="/common/js/jquery.min.js?v=3.5.1"></script>
+<script type="text/javascript" src="/pc/js/tenki/weather.js?v=0.0.5"></script>
+<script type="text/javascript" src="/pc/js/tenki/area_menu.js?v=0.0.4"></script>
+<script type="text/javascript" src="/pc/js/tenki/cookie.js?v=0.0.5"></script>
+<script type="text/javascript" src="/pc/js/tenki/geolocation.js?v=0.0.5"></script>
+<script type="text/javascript" src="/pc/js/tenki/geocoder.js?v=0.0.5"></script>
+<script type="text/javascript" src="/pc/js/tenki/search.js?v=0.0.4"></script>
+<script type="text/javascript" src="/smart/js/smode.js?v=0.0.2"></script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-S1L6XYZ7S2"></script>
+<script type="text/javascript">
+  window.dataLayer = window.dataLayer || [];
+
+  function gtag() {
+    dataLayer.push(arguments);
+  }
+  gtag('js', new Date());
+  var debugMode = false;
+  if (/test/.test(location.origin)) {
+    debugMode = true;
+  }
+  gtag('config', 'G-S1L6XYZ7S2', {'debug_mode': debugMode});
+  gtag('config', 'UA-19974793-1', {
+    'debug_mode': debugMode
+  });
+
+  //GAイベントタグ カスタム用
+  function customGA(actionStr, labelStr, linkUrl) {
+    if (ctgName && linkUrl) {
+      gtag('event', actionStr, {
+        'event_category': ctgName,
+        'event_label': labelStr,
+        'event_callback': function () {
+          document.location = linkUrl;
+        }
+      });
+    } else if (ctgName && !linkUrl) {
+      gtag('event', actionStr, {
+        'event_category': ctgName,
+        'event_label': labelStr
+      });
+    }
+  }
+</script>
+<script type="text/javascript">document.write('<link rel="stylesheet" href="https://top.bcdn.jp/s/btop_com/com_footer.css?' + (function(){var d=new Date(); return ''+d.getFullYear()+(d.getMonth()+1)+d.getDate();}()) + '" charset="utf-8">');</script>
+<script type="text/javascript">
+$(function(){
+  // 地域設定 
+  var cookieCode = '28&62078&27210';
+  var currentCookieCode = cookies.get(Cookie.weather_area.name);
+
+  if (currentCookieCode == cookieCode) {
+    $('.PpStLbttn a').text("地域設定を解除する");
+  }
+
+  $('.PpStLbttn').click(function(){
+    if (currentCookieCode == cookieCode) {    
+      cookies.remove(Cookie.weather_area.name);
+      location.reload();
+    } else {
+      var option = {
+        expires : Cookie.weather_area.expires,
+        path : Cookie.weather_area.path
+      };  
+      cookies.put(Cookie.weather_area.name, cookieCode, option);
+      location.reload(); 
+    }
+  });
+});
+</script>
+</head>
+
+<body>
+  <div id="container">
+    <div id="subcontainer">
+
+      <div id="header">
+
+        <!-- BIGLOBE共通ヘッダ(header.html)　ここから -->
+        <a name="pagetop"></a>
+<div id="headerContainer">
+<div id="headerLogo"><a href="https://www.biglobe.ne.jp/"><img src="/pc/common/img/logo.png" alt="BIGLOBE" width="145" height="31" border="0"></a></div>
+	<div id="headertitle"><a href="/"><img src="/pc/common/img/logo_wea.png" alt="天気予報" width="116" height="30"></a></div>
+	<div id="headerComment">全国の天気、行楽地の天気がわかる！</div>
+	<div id="headerSearch">
+	<form method="get" action="https://cgi.search.biglobe.ne.jp/cgi-bin/search" name="search">
+	<table border="0" cellspacing="0" cellpadding="0" summary="search form">
+		<tr>
+			<td>
+				<input type="hidden" name="c" value="検索" />
+				<input type="text" name="q" size="18" style="width:125px; color:#999" value="キーワード" onFocus="javascript:if(this.value=='キーワード')this.value='';this.style.color='#333'" onBlur="javascript:if(this.value=='')this.value='キーワード';this.style.color='#999'" />
+				<input type="hidden" name="clid" value="1">
+			</td>
+			<td class="right_m" style="padding-left: 4px;"><input type="submit" name="bg_s.x" value="BIGLOBE検索" id="btnBiglobe"></td>
+			<td class="right_m" style="padding-left: 4px;"><input type="submit" name="web_s.x" value="ウェブ検索" id="btnWeb"></td>
+		</tr>
+	</table>
+	</form>
+	</div>
+	<div id="headerLink"><a href="https://www.biglobe.ne.jp/">BIGLOBEトップ</a></div>
+</div>
+
+<div id="googleTop">
+<script type="text/javascript"><!--
+google_ad_client = "ca-pub-7093843854058227";
+/* weather_970x90 */
+google_ad_slot = "6823244717";
+google_ad_width = 970;
+google_ad_height = 90;
+//-->
+</script>
+<script type="text/javascript"
+src="//pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+
+
+</div>
+
+        <!-- BIGLOBE共通ヘッダ(header.html)　ここまで -->
+
+      </div>
+
+      <div id=tab>
+        <!-- タブメニュー(tabmenu_01.html)　ここから -->
+        <div id="tabmenu">
+	<ul>
+		<li><a href="/"><span class="active">全国の天気</span></a></li>
+		<li><a href="/warn/"><span>防災情報</span></a></li>
+		<li><a href="/gms/"><span>天気画像</span></a></li>
+		<li><a href="/world/"><span>世界の天気</span></a></li>
+		<!--<li><a href="/uv/"><span>季節情報</span></a></li>-->
+	</ul>
+
+	<!-- スーパーリロード -->
+	<input type="button" value="最新情報に更新" onclick="window.location.reload(true);" style="margin-left:20px;padding:0px 5px;background-color:#FDEADA" />
+
+	<!-- BIGLOBEサーチ ここから -->
+	<div class="searcharea">
+		<form method="get" action="/search.html" name="search" id="search">
+			<input type="text" name="q" value="" id="q" size="40" placeholder="地名・スポット名・住所・郵便番号"/>
+			<input type="submit" name="btn" value="&nbsp;&nbsp;検索&nbsp;&nbsp;" />
+		</form>
+	</div>
+	<!-- BIGLOBEサーチ ここまで -->
+</div>
+<div style="clear: both;"></div>
+
+        <!-- タブメニュー(tabmenu_01.html)　ここまで -->
+
+        <!-- サブメニュー　ここから -->
+        <div id="submenu">
+          <ul></ul>
+
+		<!-- ピンポイントプルダウン -->
+		<div style="float: left; margin-top: 1px; margin-left: 10px; font-size: 10pt; color: #666;">
+  <form name="Quick">
+  ピンポイント天気&nbsp;
+    <select name="Area" onChange="jump_pp()" style="width: 120px;">
+      <option value="/" selected>都道府県を選択</option>
+            <option value="/pinpoint/1101.html">北海道</option>
+            <option value="/pinpoint/2201.html">青森県</option>
+            <option value="/pinpoint/3201.html">岩手県</option>
+            <option value="/pinpoint/4101.html">宮城県</option>
+            <option value="/pinpoint/5201.html">秋田県</option>
+            <option value="/pinpoint/6201.html">山形県</option>
+            <option value="/pinpoint/7201.html">福島県</option>
+            <option value="/pinpoint/8201.html">茨城県</option>
+            <option value="/pinpoint/9201.html">栃木県</option>
+            <option value="/pinpoint/10201.html">群馬県</option>
+            <option value="/pinpoint/11101.html">埼玉県</option>
+            <option value="/pinpoint/12101.html">千葉県</option>
+            <option value="/pinpoint/13101.html">東京都</option>
+            <option value="/pinpoint/14101.html">神奈川県</option>
+            <option value="/pinpoint/15101.html">新潟県</option>
+            <option value="/pinpoint/16201.html">富山県</option>
+            <option value="/pinpoint/17201.html">石川県</option>
+            <option value="/pinpoint/18201.html">福井県</option>
+            <option value="/pinpoint/19201.html">山梨県</option>
+            <option value="/pinpoint/20201.html">長野県</option>
+            <option value="/pinpoint/21201.html">岐阜県</option>
+            <option value="/pinpoint/22101.html">静岡県</option>
+            <option value="/pinpoint/23101.html">愛知県</option>
+            <option value="/pinpoint/24201.html">三重県</option>
+            <option value="/pinpoint/25201.html">滋賀県</option>
+            <option value="/pinpoint/26101.html">京都府</option>
+            <option value="/pinpoint/27102.html">大阪府</option>
+            <option value="/pinpoint/28101.html">兵庫県</option>
+            <option value="/pinpoint/29201.html">奈良県</option>
+            <option value="/pinpoint/30201.html">和歌山県</option>
+            <option value="/pinpoint/31201.html">鳥取県</option>
+            <option value="/pinpoint/32201.html">島根県</option>
+            <option value="/pinpoint/33102.html">岡山県</option>
+            <option value="/pinpoint/34101.html">広島県</option>
+            <option value="/pinpoint/35201.html">山口県</option>
+            <option value="/pinpoint/36201.html">徳島県</option>
+            <option value="/pinpoint/37201.html">香川県</option>
+            <option value="/pinpoint/38201.html">愛媛県</option>
+            <option value="/pinpoint/39201.html">高知県</option>
+            <option value="/pinpoint/40101.html">福岡県</option>
+            <option value="/pinpoint/41201.html">佐賀県</option>
+            <option value="/pinpoint/42201.html">長崎県</option>
+            <option value="/pinpoint/43101.html">熊本県</option>
+            <option value="/pinpoint/44201.html">大分県</option>
+            <option value="/pinpoint/45201.html">宮崎県</option>
+            <option value="/pinpoint/46201.html">鹿児島県</option>
+            <option value="/pinpoint/47201.html">沖縄県</option>
+          </select>
+  </form>
+</div>
+
+
+          <div style="clear: both;"></div>
+        </div>
+      </div>
+      <!-- サブメニュー　ここまで -->
+
+      <div id="wrapper">
+        <div id="maincontents">
+          <!-- パンくずリスト ここから -->
+          <div id="breadcrumbs">
+            <ul>
+              <li><a href="/"><span>全国の天気</span></a>&nbsp;&gt;&nbsp;</li>
+              <li><a href="/area/5.html"><span>近畿の天気</span></a>&nbsp;&gt;&nbsp;</li>
+              <li><a href="/prefecture/28.html"><span>大阪府の天気</span></a>&nbsp;&gt;&nbsp;</li>
+              <li><a href="/pinpoint/amedas/62078.html"><span>大阪府の天気</span></a>&nbsp;&gt;&nbsp;</li>
+              <li><span>枚方市の天気</span></li>
+            </ul>
+          </div>
+          <!-- パンくずリスト ここまで -->
+      
+      <!-- 防災情報 -->
+      <div id="PreReport">
+  <dl>
+    <a href="/typh/" onclick="customGA('緊急','台風情報',this.href); return false;">
+      <dt class="Arcontent">【台風】台風7号が発生中です<span>»&nbsp;詳細</span></dt>
+    </a>
+  </dl>
+</div>
+
+      
+      <!-- 防災情報 -->
+
+          <!-- TOP AD TEXT ここから -->
+          
+          <!-- TOP AD TEXT ここまで -->
+
+          <!-- メインコンテンツ ここから -->
+
+          <!-- google_ad_section_start(name=s1) -->
+
+          <h1>枚方市の天気</h1>
+
+          <h2 style="margin-top: 8px;">今日・明日の天気</h2>
+                    <div class="box">
+            <table class="info" style="border-top: none; border-bottom: none;" summary="今日・明日の天気">
+              <tr>
+                                <td colspan="4" class="date_today" style="width: 50%;">8月16日(金)</td>
+                <td colspan="4" class="date_today" style="width: 50%;">8月17日(土)</td>
+              </tr>
+              <tr>
+                <td colspan="4" class="result" id="cloudy" style="border-bottom: none; width: 50%;">
+                  <div class="pict">
+                    <ul>
+                      <li>
+                                                <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり">
+                      </li>
+                      <li>くもり</li>
+                    </ul>
+                  </div>
+                  <div class="temp_rain">
+                    <ul>
+                      <li class="max">33℃</li>
+                      <li class="min">26℃</li>
+                      <li>40％</li>
+                    </ul>
+                  </div>
+                </td>
+                <td colspan="4" class="result" id="cloudy" style="border-bottom: none; width: 50%;">
+                  <div class="pict">
+                    <ul>
+                      <li>
+                                                <img src="/pc/img/ticon/211.png" width="50px" height="37px" alt="くもりのち晴れ">
+                      </li>
+                      <li>くもりのち晴れ</li>
+                    </ul>
+                  </div>
+                  <div class="temp_rain">
+                    <ul>
+                      <li class="max">34℃</li>
+                      <li class="min">26℃</li>
+                      <li>30％</li>
+                    </ul>
+                  </div>
+                </td>
+              </tr>
+              <tr>                <td class="ultraviolet" style="border: 1px solid #ddd;">紫外線</td>
+                <td class="ul_la_img" style="border: 1px solid #ddd; vertical-align: middle;">
+                                    <img src="/pc/img/other_icon/bluv01.png" width="30px" height="30px" alt="強い">
+                  <span>強い</span>
+                                  </td>
+                <td class="laundry" style="border: 1px solid #ddd;">洗濯</td>
+                <td class="ul_la_img" style="border: 1px solid #ddd; vertical-align: middle;">
+                                    <span>-</span>
+                                  </td>
+                <td class="ultraviolet" style="border: 1px solid #ddd;">紫外線</td>
+                <td class="ul_la_img" style="border: 1px solid #ddd; vertical-align: middle;">
+                                    <img src="/pc/img/other_icon/bluv01.png" width="30px" height="30px" alt="強い">
+                  <span>強い</span>
+                                  </td>
+                <td class="laundry" style="border: 1px solid #ddd;">洗濯</td>
+                <td class="ul_la_img" style="border: 1px solid #ddd; vertical-align: middle;">
+                                    <img src="/pc/img/other_icon/wash01.png" width="30px" height="30px" alt="最適">
+                  <span>最適</span>
+                                  </td>
+              </tr>
+            </table>
+                        <h3 class="announce" style="background: none; border:none;">2024年8月16日 15時0分発表</h3>
+          </div>
+
+          <h2 style="margin-top: 8px;">3時間おきの天気</h2>
+                    <div class="box">
+            <table class="info" summary="3時間おきの天気">
+              <tr>
+                <td class="title_top">日付</td>
+                                                                                                                                                                             <td class="date" style="border-right:0px">8/16(金)</td>
+                                                                                                      <td class="date" style="border-left:0px; border-right:0px"></td>
+                                                                                                       <td class="date" style="border-right:0px">8/17(土)</td>
+                                                                                                      <td class="date" style="border-left:0px; border-right:0px"></td>
+                                                                                                      <td class="date" style="border-left:0px; border-right:0px"></td>
+                                                                                                      <td class="date" style="border-left:0px; border-right:0px"></td>
+                                                                                                      <td class="date" style="border-left:0px; border-right:0px"></td>
+                                                                                                      <td class="date" style="border-left:0px; border-right:0px"></td>
+                                                                                                      <td class="date" style="border-left:0px; border-right:0px"></td>
+                                                                                                                                                                                                                    </tr>
+              <tr>
+                <td class="title">時間</td>
+                                                                                                                                                        <td class="result">18時</td>
+                                                                <td class="result">21時</td>
+                                                                <td class="result">0時</td>
+                                                                <td class="result">3時</td>
+                                                                <td class="result">6時</td>
+                                                                <td class="result">9時</td>
+                                                                <td class="result">12時</td>
+                                                                <td class="result">15時</td>
+                                                                <td class="result">18時</td>
+                                                                                                                                                                                                  </tr>
+              <tr>
+                <td class="title">天気</td>
+                                                                                                                                                      <td class="result">
+                                    <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり一時雨" title="くもり">
+                </td>
+                                                              <td class="result">
+                                    <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり一時雨" title="くもり">
+                </td>
+                                                              <td class="result">
+                                    <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり一時雨" title="くもり">
+                </td>
+                                                              <td class="result">
+                                    <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり一時雨" title="くもり">
+                </td>
+                                                              <td class="result">
+                                    <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり一時雨" title="くもり">
+                </td>
+                                                              <td class="result">
+                                    <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり一時雨" title="くもり">
+                </td>
+                                                              <td class="result">
+                                    <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり一時雨" title="くもり">
+                </td>
+                                                              <td class="result">
+                                    <img src="/pc/img/ticon/600.png" width="50px" height="37px" alt="くもり一時雨" title="薄曇り">
+                </td>
+                                                              <td class="result">
+                                    <img src="/pc/img/ticon/600.png" width="50px" height="37px" alt="くもり一時雨" title="薄曇り">
+                </td>
+                                                                                                                                                                                                  </tr>
+              <tr>
+                <td class="title">降水量</td>
+                                                                                                                                                      <td class="result">0mm</td>
+                                                              <td class="result">0mm</td>
+                                                              <td class="result">0mm</td>
+                                                              <td class="result">0mm</td>
+                                                              <td class="result">0mm</td>
+                                                              <td class="result">0mm</td>
+                                                              <td class="result">0mm</td>
+                                                              <td class="result">0mm</td>
+                                                              <td class="result">0mm</td>
+                                                                                                                                                                                                  </tr>
+              <tr>
+                <td class="title">気温</td>
+                                                                                                                                                      <td class="result">29℃</td>
+                                                              <td class="result">28℃</td>
+                                                              <td class="result">28℃</td>
+                                                              <td class="result">27℃</td>
+                                                              <td class="result">27℃</td>
+                                                              <td class="result">30℃</td>
+                                                              <td class="result">33℃</td>
+                                                              <td class="result">34℃</td>
+                                                              <td class="result">31℃</td>
+                                                                                                                                                                                                  </tr>
+              <tr>
+                <td class="title">風向き</td>
+                                                                                                                                                      <td class="result">
+                  <img src="/pc/img/wind/mizu14.gif" alt="弱い" title="弱い" width="24" height="22">
+                </td>
+                                                              <td class="result">
+                  <img src="/pc/img/wind/mizu14.gif" alt="弱い" title="弱い" width="24" height="22">
+                </td>
+                                                              <td class="result">
+                  <img src="/pc/img/wind/mizu12.gif" alt="弱い" title="弱い" width="24" height="22">
+                </td>
+                                                              <td class="result">
+                  <img src="/pc/img/wind/mizu12.gif" alt="弱い" title="弱い" width="24" height="22">
+                </td>
+                                                              <td class="result">
+                  <img src="/pc/img/wind/mizu12.gif" alt="弱い" title="弱い" width="24" height="22">
+                </td>
+                                                              <td class="result">
+                  <img src="/pc/img/wind/mizu14.gif" alt="弱い" title="弱い" width="24" height="22">
+                </td>
+                                                              <td class="result">
+                  <img src="/pc/img/wind/mizu15.gif" alt="弱い" title="弱い" width="24" height="22">
+                </td>
+                                                              <td class="result">
+                  <img src="/pc/img/wind/midori15.gif" alt="やや強い" title="やや強い" width="24" height="22">
+                </td>
+                                                              <td class="result">
+                  <img src="/pc/img/wind/mizu16.gif" alt="弱い" title="弱い" width="24" height="22">
+                </td>
+                                                                                                                                                                                                  </tr>
+            </table> 
+                        <h3 class="announce" style="background: none; border:none;">2024年8月16日 16時0分発表</h3>
+          </div>
+
+          <h2 style="margin-top: 8px;">週間の天気</h2>
+          <div class="box">
+            <table class="info" summary="週間の天気">
+              <tr>
+                <td class="title_top">&nbsp;</td>
+                                                                                                           <td class="date">8/18(日)</td>
+                                                               <td class="date">8/19(月)</td>
+                                                               <td class="date">8/20(火)</td>
+                                                               <td class="date">8/21(水)</td>
+                                                               <td class="date">8/22(木)</td>
+                                                               <td class="date">8/23(金)</td>
+                                            </tr>
+              <tr>
+                <td class="title">天気</td>
+                                                                                                           <td class="result">
+                  <img src="/pc/img/ticon/552.png" width="50px" height="37px" alt="猛暑時々曇り">
+                </td>
+                                                               <td class="result">
+                  <img src="/pc/img/ticon/572.png" width="50px" height="37px" alt="曇り時々猛暑">
+                </td>
+                                                               <td class="result">
+                  <img src="/pc/img/ticon/572.png" width="50px" height="37px" alt="曇り時々猛暑">
+                </td>
+                                                               <td class="result">
+                  <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり">
+                </td>
+                                                               <td class="result">
+                  <img src="/pc/img/ticon/200.png" width="50px" height="37px" alt="くもり">
+                </td>
+                                                               <td class="result">
+                  <img src="/pc/img/ticon/202.png" width="50px" height="37px" alt="くもり一時雨">
+                </td>
+                                            </tr>
+              <tr>
+                <td class="title">気温</td>
+                                                                                                           <td class="result">
+                  <div class="max">37℃</div>
+                  <div class="min">26℃</div>
+                </td>
+                                                               <td class="result">
+                  <div class="max">35℃</div>
+                  <div class="min">27℃</div>
+                </td>
+                                                               <td class="result">
+                  <div class="max">37℃</div>
+                  <div class="min">27℃</div>
+                </td>
+                                                               <td class="result">
+                  <div class="max">37℃</div>
+                  <div class="min">27℃</div>
+                </td>
+                                                               <td class="result">
+                  <div class="max">37℃</div>
+                  <div class="min">27℃</div>
+                </td>
+                                                               <td class="result">
+                  <div class="max">34℃</div>
+                  <div class="min">27℃</div>
+                </td>
+                                            </tr>
+              <tr>
+                <td class="title">降水確率</td>
+                                                                                                           <td class="result">20%</td>
+                                                               <td class="result">30%</td>
+                                                               <td class="result">30%</td>
+                                                               <td class="result">40%</td>
+                                                               <td class="result">40%</td>
+                                                               <td class="result">60%</td>
+                                            </tr>
+            </table>
+                        <h3 class="announce" style="background: none; border:none;">2024年8月16日 15時0分発表</h3>
+          </div>
+
+          <div class="PpStLbttn">
+            <a href="javascript:void(0)" onclick="customGA('自分の地域に設定','大阪府 枚方市');">自分の地域に設定する</a>
+          </div>
+          <!-- google_ad_section_end(name=s1) -->
+
+          <!-- GoogleAFC　ここから -->
+          <!-- 天気PC_ミドル_左 -->
+<div style="float:left; padding-left:20px; padding-top:20px;">
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<ins class="adsbygoogle"
+	     style="display:inline-block;width:300px;height:250px"
+	     data-ad-client="ca-pub-6456250580456597"
+	     data-ad-slot="7340471395"
+	     data-adtest="off">
+	</ins>
+	<script>
+	(adsbygoogle = window.adsbygoogle || []).push({});
+	</script>
+</div>
+<!-- //天気PC_ミドル_左 -->
+
+
+
+<!-- weather_middle -->
+<div style="margin-top: 20px; float:left; padding-left:45px; margin-bottom:20px;">
+<script type="text/javascript"><!--
+google_ad_client = "ca-pub-7093843854058227";
+/* weather_middle_300x250 */
+google_ad_slot = "2374512437";
+google_ad_width = 300;
+google_ad_height = 250;
+//-->
+</script>
+<script type="text/javascript"
+src="//pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</div>
+<!-- /weather_middle -->
+
+          <!-- GoogleAFC　ここまで -->
+
+          <!-- google_ad_section_start(name=s2) -->
+
+          <h2>大阪府の各市区町村の天気予報</h2>
+          <div class="box_border">
+            <ul class="links">
+                            <li class="area"><a href="/pinpoint/27102.html" onclick="customGA('市区町村の天気','大阪市都島区',this.href); return false;">大阪市都島区</a></li>
+                            <li class="area"><a href="/pinpoint/27103.html" onclick="customGA('市区町村の天気','大阪市福島区',this.href); return false;">大阪市福島区</a></li>
+                            <li class="area"><a href="/pinpoint/27104.html" onclick="customGA('市区町村の天気','大阪市此花区',this.href); return false;">大阪市此花区</a></li>
+                            <li class="area"><a href="/pinpoint/27106.html" onclick="customGA('市区町村の天気','大阪市西区',this.href); return false;">大阪市西区</a></li>
+                            <li class="area"><a href="/pinpoint/27107.html" onclick="customGA('市区町村の天気','大阪市港区',this.href); return false;">大阪市港区</a></li>
+                            <li class="area"><a href="/pinpoint/27108.html" onclick="customGA('市区町村の天気','大阪市大正区',this.href); return false;">大阪市大正区</a></li>
+                            <li class="area"><a href="/pinpoint/27109.html" onclick="customGA('市区町村の天気','大阪市天王寺区',this.href); return false;">大阪市天王寺区</a></li>
+                            <li class="area"><a href="/pinpoint/27111.html" onclick="customGA('市区町村の天気','大阪市浪速区',this.href); return false;">大阪市浪速区</a></li>
+                            <li class="area"><a href="/pinpoint/27113.html" onclick="customGA('市区町村の天気','大阪市西淀川区',this.href); return false;">大阪市西淀川区</a></li>
+                            <li class="area"><a href="/pinpoint/27114.html" onclick="customGA('市区町村の天気','大阪市東淀川区',this.href); return false;">大阪市東淀川区</a></li>
+                            <li class="area"><a href="/pinpoint/27115.html" onclick="customGA('市区町村の天気','大阪市東成区',this.href); return false;">大阪市東成区</a></li>
+                            <li class="area"><a href="/pinpoint/27116.html" onclick="customGA('市区町村の天気','大阪市生野区',this.href); return false;">大阪市生野区</a></li>
+                            <li class="area"><a href="/pinpoint/27117.html" onclick="customGA('市区町村の天気','大阪市旭区',this.href); return false;">大阪市旭区</a></li>
+                            <li class="area"><a href="/pinpoint/27118.html" onclick="customGA('市区町村の天気','大阪市城東区',this.href); return false;">大阪市城東区</a></li>
+                            <li class="area"><a href="/pinpoint/27119.html" onclick="customGA('市区町村の天気','大阪市阿倍野区',this.href); return false;">大阪市阿倍野区</a></li>
+                            <li class="area"><a href="/pinpoint/27120.html" onclick="customGA('市区町村の天気','大阪市住吉区',this.href); return false;">大阪市住吉区</a></li>
+                            <li class="area"><a href="/pinpoint/27121.html" onclick="customGA('市区町村の天気','大阪市東住吉区',this.href); return false;">大阪市東住吉区</a></li>
+                            <li class="area"><a href="/pinpoint/27122.html" onclick="customGA('市区町村の天気','大阪市西成区',this.href); return false;">大阪市西成区</a></li>
+                            <li class="area"><a href="/pinpoint/27123.html" onclick="customGA('市区町村の天気','大阪市淀川区',this.href); return false;">大阪市淀川区</a></li>
+                            <li class="area"><a href="/pinpoint/27124.html" onclick="customGA('市区町村の天気','大阪市鶴見区',this.href); return false;">大阪市鶴見区</a></li>
+                            <li class="area"><a href="/pinpoint/27125.html" onclick="customGA('市区町村の天気','大阪市住之江区',this.href); return false;">大阪市住之江区</a></li>
+                            <li class="area"><a href="/pinpoint/27126.html" onclick="customGA('市区町村の天気','大阪市平野区',this.href); return false;">大阪市平野区</a></li>
+                            <li class="area"><a href="/pinpoint/27127.html" onclick="customGA('市区町村の天気','大阪市北区',this.href); return false;">大阪市北区</a></li>
+                            <li class="area"><a href="/pinpoint/27128.html" onclick="customGA('市区町村の天気','大阪市中央区',this.href); return false;">大阪市中央区</a></li>
+                            <li class="area"><a href="/pinpoint/27141.html" onclick="customGA('市区町村の天気','堺市堺区',this.href); return false;">堺市堺区</a></li>
+                            <li class="area"><a href="/pinpoint/27142.html" onclick="customGA('市区町村の天気','堺市中区',this.href); return false;">堺市中区</a></li>
+                            <li class="area"><a href="/pinpoint/27143.html" onclick="customGA('市区町村の天気','堺市東区',this.href); return false;">堺市東区</a></li>
+                            <li class="area"><a href="/pinpoint/27144.html" onclick="customGA('市区町村の天気','堺市西区',this.href); return false;">堺市西区</a></li>
+                            <li class="area"><a href="/pinpoint/27145.html" onclick="customGA('市区町村の天気','堺市南区',this.href); return false;">堺市南区</a></li>
+                            <li class="area"><a href="/pinpoint/27146.html" onclick="customGA('市区町村の天気','堺市北区',this.href); return false;">堺市北区</a></li>
+                            <li class="area"><a href="/pinpoint/27147.html" onclick="customGA('市区町村の天気','堺市美原区',this.href); return false;">堺市美原区</a></li>
+                            <li class="area"><a href="/pinpoint/27202.html" onclick="customGA('市区町村の天気','岸和田市',this.href); return false;">岸和田市</a></li>
+                            <li class="area"><a href="/pinpoint/27203.html" onclick="customGA('市区町村の天気','豊中市',this.href); return false;">豊中市</a></li>
+                            <li class="area"><a href="/pinpoint/27204.html" onclick="customGA('市区町村の天気','池田市',this.href); return false;">池田市</a></li>
+                            <li class="area"><a href="/pinpoint/27205.html" onclick="customGA('市区町村の天気','吹田市',this.href); return false;">吹田市</a></li>
+                            <li class="area"><a href="/pinpoint/27206.html" onclick="customGA('市区町村の天気','泉大津市',this.href); return false;">泉大津市</a></li>
+                            <li class="area"><a href="/pinpoint/27207.html" onclick="customGA('市区町村の天気','高槻市',this.href); return false;">高槻市</a></li>
+                            <li class="area"><a href="/pinpoint/27208.html" onclick="customGA('市区町村の天気','貝塚市',this.href); return false;">貝塚市</a></li>
+                            <li class="area"><a href="/pinpoint/27209.html" onclick="customGA('市区町村の天気','守口市',this.href); return false;">守口市</a></li>
+                            <li class="area"><a href="/pinpoint/27210.html" onclick="customGA('市区町村の天気','枚方市',this.href); return false;">枚方市</a></li>
+                            <li class="area"><a href="/pinpoint/27211.html" onclick="customGA('市区町村の天気','茨木市',this.href); return false;">茨木市</a></li>
+                            <li class="area"><a href="/pinpoint/27212.html" onclick="customGA('市区町村の天気','八尾市',this.href); return false;">八尾市</a></li>
+                            <li class="area"><a href="/pinpoint/27213.html" onclick="customGA('市区町村の天気','泉佐野市',this.href); return false;">泉佐野市</a></li>
+                            <li class="area"><a href="/pinpoint/27214.html" onclick="customGA('市区町村の天気','富田林市',this.href); return false;">富田林市</a></li>
+                            <li class="area"><a href="/pinpoint/27215.html" onclick="customGA('市区町村の天気','寝屋川市',this.href); return false;">寝屋川市</a></li>
+                            <li class="area"><a href="/pinpoint/27216.html" onclick="customGA('市区町村の天気','河内長野市',this.href); return false;">河内長野市</a></li>
+                            <li class="area"><a href="/pinpoint/27217.html" onclick="customGA('市区町村の天気','松原市',this.href); return false;">松原市</a></li>
+                            <li class="area"><a href="/pinpoint/27218.html" onclick="customGA('市区町村の天気','大東市',this.href); return false;">大東市</a></li>
+                            <li class="area"><a href="/pinpoint/27219.html" onclick="customGA('市区町村の天気','和泉市',this.href); return false;">和泉市</a></li>
+                            <li class="area"><a href="/pinpoint/27220.html" onclick="customGA('市区町村の天気','箕面市',this.href); return false;">箕面市</a></li>
+                            <li class="area"><a href="/pinpoint/27221.html" onclick="customGA('市区町村の天気','柏原市',this.href); return false;">柏原市</a></li>
+                            <li class="area"><a href="/pinpoint/27222.html" onclick="customGA('市区町村の天気','羽曳野市',this.href); return false;">羽曳野市</a></li>
+                            <li class="area"><a href="/pinpoint/27223.html" onclick="customGA('市区町村の天気','門真市',this.href); return false;">門真市</a></li>
+                            <li class="area"><a href="/pinpoint/27224.html" onclick="customGA('市区町村の天気','摂津市',this.href); return false;">摂津市</a></li>
+                            <li class="area"><a href="/pinpoint/27225.html" onclick="customGA('市区町村の天気','高石市',this.href); return false;">高石市</a></li>
+                            <li class="area"><a href="/pinpoint/27226.html" onclick="customGA('市区町村の天気','藤井寺市',this.href); return false;">藤井寺市</a></li>
+                            <li class="area"><a href="/pinpoint/27227.html" onclick="customGA('市区町村の天気','東大阪市',this.href); return false;">東大阪市</a></li>
+                            <li class="area"><a href="/pinpoint/27228.html" onclick="customGA('市区町村の天気','泉南市',this.href); return false;">泉南市</a></li>
+                            <li class="area"><a href="/pinpoint/27229.html" onclick="customGA('市区町村の天気','四條畷市',this.href); return false;">四條畷市</a></li>
+                            <li class="area"><a href="/pinpoint/27230.html" onclick="customGA('市区町村の天気','交野市',this.href); return false;">交野市</a></li>
+                            <li class="area"><a href="/pinpoint/27231.html" onclick="customGA('市区町村の天気','大阪狭山市',this.href); return false;">大阪狭山市</a></li>
+                            <li class="area"><a href="/pinpoint/27232.html" onclick="customGA('市区町村の天気','阪南市',this.href); return false;">阪南市</a></li>
+                            <li class="area"><a href="/pinpoint/27301.html" onclick="customGA('市区町村の天気','三島郡島本町',this.href); return false;">三島郡島本町</a></li>
+                            <li class="area"><a href="/pinpoint/27321.html" onclick="customGA('市区町村の天気','豊能郡豊能町',this.href); return false;">豊能郡豊能町</a></li>
+                            <li class="area"><a href="/pinpoint/27322.html" onclick="customGA('市区町村の天気','豊能郡能勢町',this.href); return false;">豊能郡能勢町</a></li>
+                            <li class="area"><a href="/pinpoint/27341.html" onclick="customGA('市区町村の天気','泉北郡忠岡町',this.href); return false;">泉北郡忠岡町</a></li>
+                            <li class="area"><a href="/pinpoint/27361.html" onclick="customGA('市区町村の天気','泉南郡熊取町',this.href); return false;">泉南郡熊取町</a></li>
+                            <li class="area"><a href="/pinpoint/27362.html" onclick="customGA('市区町村の天気','泉南郡田尻町',this.href); return false;">泉南郡田尻町</a></li>
+                            <li class="area"><a href="/pinpoint/27366.html" onclick="customGA('市区町村の天気','泉南郡岬町',this.href); return false;">泉南郡岬町</a></li>
+                            <li class="area"><a href="/pinpoint/27381.html" onclick="customGA('市区町村の天気','南河内郡太子町',this.href); return false;">南河内郡太子町</a></li>
+                            <li class="area"><a href="/pinpoint/27382.html" onclick="customGA('市区町村の天気','南河内郡河南町',this.href); return false;">南河内郡河南町</a></li>
+                            <li class="area"><a href="/pinpoint/27383.html" onclick="customGA('市区町村の天気','南河内郡千早赤阪村',this.href); return false;">南河内郡千早赤阪村</a></li>
+                          </ul>
+            <div style="clear: both; padding-bottom: 6px;"></div>
+          </div>
+
+          <h2>近隣の都道府県の天気</h2>
+          <div class="box_border" style="padding: 8px;">
+            <ul>
+              <li class="category_pref">近畿</li>
+                            <li class="pref"><a href="/prefecture/28.html">大阪府</a></li>
+                            <li class="pref"><a href="/prefecture/29.html">兵庫県</a></li>
+                            <li class="pref"><a href="/prefecture/30.html">京都府</a></li>
+                            <li class="pref"><a href="/prefecture/31.html">滋賀県</a></li>
+                            <li class="pref"><a href="/prefecture/32.html">奈良県</a></li>
+                            <li class="pref"><a href="/prefecture/33.html">和歌山県</a></li>
+                          </ul>
+            <div style="clear: both;"></div>
+          </div>
+          <!-- google_ad_section_end(name=s2) -->
+
+          		<h2>行楽地の天気</h2>
+		<div class="box_border">
+			<ul style="margin-top: 6px; margin-left: 6px;">
+				<li class="category">全国</li>
+				<li class="category_sub">[ レジャー ]</li>
+				<li class="spot"><a href="/resort/1.html">テーマパーク</a></li>
+				<li class="spot"><a href="/resort/2.html">観光地</a></li>
+				<li class="spot"><a href="/resort/3.html">展望名所</a></li>
+				<li class="spot"><a href="/resort/4.html">動物園</a></li>
+				<li class="spot"><a href="/resort/5.html">水族館</a></li>
+			</ul>
+			<div style="clear: both;"></div>
+			<ul style="margin-left: 6px; margin-top: 2px;">
+				<li class="category">&nbsp;</li>
+				<li class="category_sub">[ スポーツ ]</li>
+				<li class="spot"><a href="/resort/6.html">野球場</a></li>
+				<li class="spot"><a href="/resort/7.html">サッカー場 </a></li>
+				<li class="spot"><a href="/resort/8.html">サーキット</a></li>
+				<li class="spot"><a href="/resort/9.html">競馬場</a></li>
+			</ul>
+			<div style="clear: both;"></div>
+			<ul style="margin-left: 6px; margin-top: 2px;">
+				<li class="category">&nbsp;</li>
+				<li class="category_sub">[ 交通 ]</li>
+				<li class="spot"><a href="/resort/10.html">駅</a></li>
+				<li class="spot"><a href="/resort/11.html">空港</a></li>
+			</ul>
+			<div style="clear: both; margin-bottom: 6px;"></div>
+		</div>
+
+
+          <h2>各地の天気</h2>
+          <div class="box_border" style="padding: 8px;">
+            <ul>
+              <li class="category_pref">全国</li>
+				<li class="pref"><a href="/area/1.html" onclick="customGA('各地の天気','北海道',this.href); return false;">北海道</a></li>
+				<li class="pref"><a href="/area/2.html" onclick="customGA('各地の天気','東北',this.href); return false;">東北</a></li>
+				<li class="pref"><a href="/area/3.html" onclick="customGA('各地の天気','関東',this.href); return false;">関東</a></li>
+				<li class="pref"><a href="/area/4.html" onclick="customGA('各地の天気','中部',this.href); return false;">中部</a></li>
+				<li class="pref"><a href="/area/5.html" onclick="customGA('各地の天気','近畿',this.href); return false;">近畿</a></li>
+				<li class="pref"><a href="/area/6.html" onclick="customGA('各地の天気','中国・四国',this.href); return false;">中国・四国</a></li>
+				<li class="pref"><a href="/area/7.html" onclick="customGA('各地の天気','九州',this.href); return false;">九州</a></li>
+				<li class="pref"><a href="/area/8.html" onclick="customGA('各地の天気','沖縄',this.href); return false;">沖縄</a></li>
+            </ul>
+          
+            <div style="clear: both;"></div>
+          </div>
+          
+          <div id="logly-lift-4273336"></div><script charset="UTF-8">
+  (function(){
+    var _lgy_lw = document.createElement("script");
+    _lgy_lw.type = "text/javascript";
+    _lgy_lw.charset = "UTF-8";
+    _lgy_lw.async = true;
+    _lgy_lw.src= "//l.logly.co.jp/lift_widget.js?adspot_id=4273336";
+    var _lgy_lw_0 = document.getElementsByTagName("script")[0];
+    _lgy_lw_0.parentNode.insertBefore(_lgy_lw, _lgy_lw_0);
+  })();</script>
+          <p style="margin-top:8px; padding: 8px; font-size: 9pt; color: #666; clear:both;"> 当ページの情報に基づいて遂行された活動において発生したいかなる人物の損傷、死亡、所有物の損失、障害に対してなされた全ての求償の責は負いかねますので、あらかじめご了承の程お願い申し上げます。事前に現地での情報をご確認することをお勧めいたします。
+<br />
+	<script type="text/javascript" src="/pc/js/wni_copyright.js"></script>
+	<script type="text/javascript">
+	<!--
+	wni_copyright();
+	//-->
+	</script>
+	<noscript>Copyright(C)Weathernews Inc.</noscript>
+</p>
+
+
+        </div>
+
+      </div>
+
+      <div id="rnavi">
+        <!-- 右ナビ(rnavi.html)　ここから -->
+        <!-- 右ナビ広告枠 ここから -->
+<!-- 天気PC_右カラム_1st -->
+<div style="margin-bottom:10px;">
+	<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+	<ins class="adsbygoogle"
+	     style="display:inline-block;width:300px;height:250px"
+	     data-ad-client="ca-pub-6456250580456597"
+	     data-ad-slot="8817204594"
+	     data-adtest="off">
+	</ins>
+	<script>
+	(adsbygoogle = window.adsbygoogle || []).push({});
+	</script>
+</div>
+<!-- //天気PC_右カラム_1st -->
+
+
+<!-- 右ナビ広告枠 ここまで -->
+
+<!-- マイ天気メニュー ここから -->
+<script type="text/javascript">
+$(function() {
+  "use strict";
+
+  function template(template, param) {
+    return template.replace(/{{(.+?)}}/g, function(match, name) {
+      return param[name] || '';
+    });
+  }
+
+  function rendarWeatherInfo(weatherJsonItem, isArea) {
+    var dayOfNames = ["日","月","火","水","木","金","土"];
+    WeatherProperty.get(function(props) {
+      var todayWeather = weatherJsonItem.weathers[0],
+        todayDate = new Date(todayWeather.date.replace(/-/g,'/')),
+        todayProp = WeatherProperty.findByTelopNumber(props, todayWeather.weatherNumber),
+        tomorrowWeather = weatherJsonItem.weathers[1],
+        tomorrowDate = new Date(tomorrowWeather.date.replace(/-/g,'/')),
+        tomorrowProp = WeatherProperty.findByTelopNumber(props, tomorrowWeather.weatherNumber);
+
+      // 今日の天気
+      $('#PpWtoda p').text(template('今日{{date}}({{day}})', {
+        date : todayDate.getDate(),
+        day : dayOfNames[todayDate.getDay()]
+      }));
+
+      $('#PpWtdkion .PpWktdhig').text(todayWeather.maxTemp + '℃');
+      $('#PpWtdkion .PpWktdlow').text(todayWeather.minTemp + '℃');
+      $('#PpWtdkousui p span').text(todayWeather.precipitation + '%');
+      $('#PpWtdphoto p').html(template(
+        '<img src="/smart/img/ticon/{{telop}}.png" width="50px" height="37px" alt="{{label}}">' ,
+        {
+          'telop' : todayWeather.weatherNumber,
+          'label' : todayProp.label
+        }
+      ));
+      $('.PptodayW #PpWtmtenki p').text(todayProp.label);
+      $('.PptodayW > div').attr('id', todayProp.styleClass);
+
+      // 明日の天気
+      $('#PpWtomo p').text(template('明日{{date}}({{day}})', {
+        date : tomorrowDate.getDate(),
+        day : dayOfNames[tomorrowDate.getDay()]
+      }));
+      $('#PpWtmkion .PpWktmhig').text(tomorrowWeather.maxTemp + '℃');
+      $('#PpWtmkion .PpWktmlow').text(tomorrowWeather.minTemp + '℃');
+      $('#PpWtmkousui p span').text(tomorrowWeather.precipitation + '%');
+      $('#PpWtmphoto p').html(template(
+        '<img src="/smart/img/ticon/{{telop}}.png" width="50px" height="37px" alt="{{label}}">' ,
+        {
+          'telop' : tomorrowWeather.weatherNumber,
+          'label' : tomorrowProp.label
+        }
+      ));
+      $('.PptomorrowW #PpWtmtenki p').text(tomorrowProp.label);
+      $('.PptomorrowW > div').attr('id', tomorrowProp.styleClass);
+      $('.Ppweather').show();
+    });
+  }
+
+  function rendarWeatherInfoByAreaCode(json, areaCode) {
+    var areaInfo = AreaMenu.findByAreaCode(json, areaCode);
+    AreaWeekly.get(function (weatherJson) {
+      var weather = AreaWeekly.findByAmedasCode(weatherJson, areaCode);
+      if(weather) {
+        $('.Ppweather a').attr('href', "/pinpoint/amedas/" + areaCode + ".html");
+        $('.label_area').html(template('{{prefectureName}}{{areaName}}の天気'
+         + '<a href="/setting.html"><span class="AreCon">［地域変更］</span></a>', {
+          'prefectureName' : weather.prefectureName,
+          'areaName' : weather.areaName
+        }));
+        rendarWeatherInfo(weather, true);
+      } else {
+        rendarWeatherInfoByAreaCode(json, AreaMenu.getDefaultArea(json).area.value);
+      }
+    });
+  }
+
+  function rendarWeatherInfoByCityCode(json, cityCode) {
+    var areaInfo = AreaMenu.findByCityCode(json, cityCode);
+    CityWeekly.get(function (weatherJson) {
+      var weather = CityWeekly.findByJisAreaCode(weatherJson, cityCode);
+      if(weather) {
+        $('.Ppweather a').attr('href', "/pinpoint/" + cityCode + ".html");
+        $('.label_area').html(template('{{cityName}}の天気'
+         + '<a href="/setting.html"><span class="AreCon">［地域変更］</span></a>', {
+          'cityName' : weather.cityName
+        }));
+        rendarWeatherInfo(weather, false);
+      } else {
+        rendarWeatherInfoByAreaCode(json, AreaMenu.getDefaultArea(json).area.value);
+      }
+    });
+  }
+
+  // 地域情報取得
+  AreaMenu.get('/smart/data/areaMenu.json', function(areaMenuJson) {
+    var cookieValue = cookies.get(Cookie.weather_area.name);
+    if (!cookieValue) {
+      // Cookie 情報なし
+      rendarWeatherInfoByAreaCode(areaMenuJson, AreaMenu.getDefaultArea(areaMenuJson).area.value);
+    }
+    else {
+      var weatherCookie = Cookie.parse(cookieValue);
+      if (weatherCookie.city == undefined) {
+        // 詳細地域設定なし
+        rendarWeatherInfoByAreaCode(areaMenuJson, weatherCookie.area);
+      } else {
+        // 詳細地域設定あり
+        rendarWeatherInfoByCityCode(areaMenuJson, weatherCookie.city);
+      }
+    }
+  });
+});
+</script>
+<h2 class="label_area">&nbsp;
+	<a href="/setting.html">
+		<span class="AreCon">［地域変更］</span>
+	</a>
+</h2>
+<div class="box_border">
+	<div class="Ppweather" style="display:none">
+		<a href="#">
+			<!-- 今日の天気 -->
+			<div class="PptodayW">
+				<div id="cloudy">
+					<!-- 日付 -->
+					<div id="PpWtoda">
+						<p>今日19(水)</p>
+					</div>
+
+					<div class="Ppbox01">
+						<!-- 天気画像 -->
+						<div id="PpWtdphoto">
+							<p>
+								<img src="/smart/img/ticon/202.png" width="50px" height="37px" alt="くもり一時雨">
+							</p>
+						</div>
+						<!-- 気温 -->
+						<div id="PpWtdkion">
+							<table align="center">
+								<tr>
+									<td class="PpWktdhig">19℃</td>
+								</tr>
+								<tr>
+									<td class="PpWktdlow">16℃</td>
+								</tr>
+							</table>
+						</div>
+					</div>
+					<!-- box01 -->
+
+					<div class="Ppbox01">
+						<!-- 天気文言 -->
+						<div id="PpWtmtenki">
+							<p>くもり一時雨</p>
+						</div>
+						<!-- 降水確率 -->
+						<div id="PpWtdkousui">
+							<table align="center">
+								<tr>
+									<td>
+										<p>
+											<span>50%</span>
+										</p>
+									</td>
+								</tr>
+							</table>
+						</div>
+					</div>
+					<!--  box01 -->
+				</div>
+			</div>
+			<!-- Pptoday -->
+
+			<div class="PptomorrowW">
+
+				<div id="cloudy">
+					<!-- 日付 -->
+					<div id="PpWtomo">
+						<p>明日20(木)</p>
+					</div>
+					<div class="Ppbox01">
+						<!-- 画像 -->
+						<div id="PpWtmphoto">
+							<p>
+								<img src="/smart/img/ticon/202.png" width="50px" height="37px" alt="くもり一時雨">
+							</p>
+						</div>
+						<!-- 気温 -->
+						<div id="PpWtmkion">
+							<table align="center">
+								<tr>
+									<td class="PpWktmhig">21℃</td>
+								</tr>
+								<tr>
+									<td class="PpWktmlow">18℃</td>
+								</tr>
+							</table>
+						</div>
+					</div>
+					<!-- box01 -->
+
+					<div class="Ppbox01">
+						<!-- 天気 -->
+						<div id="PpWtmtenki">
+							<p>くもり一時雨</p>
+						</div>
+						<!-- 降水確率 -->
+						<div id="PpWtmkousui">
+							<table align="center">
+								<tr>
+									<td>
+										<p>
+											<span>50%</span>
+										</p>
+									</td>
+								</tr>
+							</table>
+						</div>
+					</div>
+					<!-- box01 -->
+				</div>
+			</div>
+			<!--PptomorrowW-->
+
+			<div style="clear: both;"></div>
+			<div class="DetLin">&raquo;詳細を見る</div>
+
+		</a>
+	</div>
+	<!--Ppweather-->
+</div>
+<!--box_border-->
+<!-- マイ天気メニュー ここまで -->
+
+
+<!-- 天気メニュー ここから -->
+<h2>天気メニュー</h2>
+<div class="box_border">
+	<h3 class="top">天気画像</h3>
+	<div class="WeaImg">
+		<ul>
+			<li>
+        <a href="/amedas/">
+					<img src="/smart/img/amedas_zenkoku_temp_400300.jpg" alt="アメダス" width="120" height="105" border="0" /><p>アメダス</p>
+        </a>
+			</li>
+			<li>
+				<a href="/radar/">
+					<img src="/smart/img/radar_RKNT_400300.jpg" alt="雨雲レーダー" width="120" height="105" border="0" /><p>雨雲レーダー</p></a>
+			</li>
+			<li>
+				<a href="/gms/#satellite">
+					<img src="/smart/img/gms_B_0_400300.jpg" alt="衛星画像" width="120" height="105" border="0" /><p>衛星画像</p></a>
+			</li>
+			<li>
+				<a href="/gms/#wMap">
+					<img src="/smart/img/wxcto_400300.jpg" alt="天気図" width="120" height="105" border="0" /><p>天気図</p></a>
+			</li>
+		</ul>
+		<br />
+	</div>
+	<div style="clear: both;"></div>
+
+	<h3 style="margin-top: 10px;">防災情報</h3>
+	<ul class="side">
+		<li><a href="/warn/">警報・注意報</a></li>
+		<li><a href="/typh/">台風情報</a></li>
+		<li><a href="/earthquake/">地震情報</a></li>
+	</ul>
+	<div style="clear: both;"></div>
+
+	<h3>行楽地の天気</h3>
+	<ul class="ResWea">
+		<p class="two_line">レジャー</p>
+		<li><a href="/resort/1.html">テーマパーク</a></li>
+		<li><a href="/resort/2.html">観光地</a></li>
+		<li><a href="/resort/3.html">展望名所</a></li>
+		<li><a href="/resort/4.html">動物園</a></li>
+		<li><a href="/resort/5.html">水族館</a></li>
+	</ul>
+	<div style="clear: both;"></div>
+
+	<ul class="ResWea">
+		<p>スポーツ</p>
+		<li><a href="/resort/6.html">野球場</a></li>
+		<li><a href="/resort/7.html">サッカー場</a></li>
+		<li><a href="/resort/8.html">サーキット</a></li>
+		<li><a href="/resort/9.html">競馬場</a></li>
+	</ul>
+	<div style="clear: both;"></div>
+
+	<ul class="ResWea">
+		<p>交通</p>
+		<li><a href="/resort/10.html">駅</a></li>
+		<li><a href="/resort/11.html">空港</a></li>
+	</ul>
+	<div style="clear: both;"></div>
+
+	<h3>全国の天気</h3>
+	<ul class="side">
+		<li><a href="/area/1.html">北海道</a></li>
+		<li><a href="/area/2.html">東北</a></li>
+		<li><a href="/area/3.html">関東</a></li>
+		<li><a href="/area/4.html">中部</a></li>
+		<li><a href="/area/5.html">近畿</a></li>
+		<li><a href="/area/6.html">中国・四国</a></li>
+		<li><a href="/area/7.html">九州</a></li>
+		<li><a href="/area/8.html">沖縄</a></li>
+	</ul>
+	<div style="clear: both;"></div>
+
+	<h3>世界の天気</h3>
+	<ul class="WorWea">
+		<p><a href="/world/">世界の天気<br /><img src="/pc/img/right_column_world.png" alt="世界地図" width="80" height="45" border="0" /></a></p>
+		<li><a href="/world/1.html">北米</a></li>
+		<li><a href="/world/2.html">南米</a></li>
+		<li><a href="/world/3.html">ヨーロッパ</a></li>
+		<li><a href="/world/4.html">アフリカ・中近東</a></li>
+		<li><a href="/world/5.html">中央・東アジア</a></li>
+		<li><a href="/world/6.html">南・東南アジア</a></li>
+		<li><a href="/world/7.html">オセアニア</a></li>
+	</ul>
+	<div style="clear: both;"></div>
+
+	<!-- google_ad_section_end(name=*tenki2*) -->
+
+        
+		<!-- <h3>季節情報</h3>
+		
+		<ul class="side">
+                <img src="/Icons/img/new.gif" alt="NEW" align="center"><br />
+               <img src="/Icons/img/new.gif" alt="NEW" align="center"><br />
+            <li><a href="https://weather.biglobe.ne.jp/data/beer/index.html">ビール情報</a></li>
+			<img src="/Icons/img/new.gif" alt="NEW" align="center"><br />
+              <img src="/Icons/img/new.gif" alt="NEW" align="center"><br />
+             <img src="/Icons/img/new.gif" alt="NEW" align="center"><br />
+		</ul>
+  		<div style="border-bottom: 1px solid rgb(238, 238, 238); clear: both; padding-bottom: 2px; margin-bottom: 4px;"></div>
+		
+		<ul class="side">
+			<li><a href="https://weather.biglobe.ne.jp/data/uv/index.html">紫外線指数</a></li>
+			<li><a href="https://weather.biglobe.ne.jp/data/sentaku/index.html">洗濯指数</a></li>
+			<li><a href="https://weather.biglobe.ne.jp/data/topics/index.html">トピックス</a></li>
+		</ul>
+		<div style="clear: both; padding-bottom: 8px;"></div> -->
+
+
+        	</div>
+<!-- 天気メニュー　ここまで -->
+<!-- weather_migi -->
+<div style="margin-top: 10px;">
+<script type="text/javascript"><!--
+google_ad_client = "ca-pub-7093843854058227";
+/* weather_2nd_300x250 */
+google_ad_slot = "8360524637";
+google_ad_width = 300;
+google_ad_height = 250;
+//-->
+</script>
+<script type="text/javascript"
+src="//pagead2.googlesyndication.com/pagead/show_ads.js">
+</script>
+</div>
+<!-- /weather_migi -->
+
+
+	<!-- mobile天気　ここから -->
+	<h2 class="other">スマートフォン版</h2>
+	<div class="box_other">
+	<div class="SpQr">
+		<p><img src="/pc/img/smart.gif" alt="世界地図" width="131" height="131" border="0" />スマホで天気予報を見よう
+		<ul>
+		<li>GPSで現在地の天気がすぐわかる</li>
+		<li>台風・地震の発生がすぐわかる</li>
+		</ul>
+		</p>
+	</div>
+	<div style="clear: both;"></div>
+	</div>
+	<!-- mobile天気　ここまで -->
+
+<!--スタートページ開始-->
+<div style="margin: 8px 0 0 0" >
+<a href="http://www.biglobe.ne.jp/startpage/" target="_blank">
+<img src="/pc/img/spg_weather.png">
+</a>
+</div>
+<!--スタートページ終了-->
+
+<!-- BIGLOBサービス訴求　ここから -->
+
+
+
+<!-- お湯たび -->
+<div style="margin-top: 10px"><a onclick="gtag('event','click',{'event_category': 'localnavi', 'event_label': '20190527お湯たび'});" href="https://oyutabi.biglobe.ne.jp/?utm_source=BIGLOBE%20weather&utm_medium=banner&utm_campaign=siteopen" alt="お湯たび" target="_blank"><img src="/img/300x100_oyutabi.gif" title="お湯たび" width="300" height="100" /></a></div>
+<!-- お湯たび -->
+
+
+
+<!-- BIGLOBサービス訴求　ここまで -->
+        <!-- 右ナビ(rnavi.html)　ここまで -->
+      </div>
+
+      <div id="footer">
+        <!-- BIGLOBE共通フッタ(footer.html) ここから -->
+        <!-- START : フッター -->
+<div id="footerContainer">
+<div id="footerPagetop"><a href="#pagetop">このページの先頭へ▲</a></div>
+<div id="switchDisplay" style="text-align: center;margin: 10px 0;display:none;">
+<span id="smodeOff">表示&ensp;：&ensp;<a onclick="javascript:setsmodeOff();" href="">スマートフォン</a></span>&ensp;|&ensp;PC
+</div>
+<!--フッターサーチここから-->
+<div id="footerSearch">
+<a href="https://search.biglobe.ne.jp/">ウェブ</a>｜<a href="https://news.biglobe.ne.jp/">ニュース</a>｜<a href="https://www.biglobe.ne.jp/guide/">BIGLOBE内</a><br>
+<table summary="search form" style="width:100%;">
+			<tr>
+	<form name="srh2" id="srh2" method="get" action="https://cgi.search.biglobe.ne.jp/cgi-bin/search2-f">
+				<td style="text-align: center;">
+					<input type="hidden" name="c" value="検索">
+					<input type="text" name="q" size="18" style="width:216px" value="">
+					<input type="hidden" name="clid" value="1">
+					<input type="submit" name="btn2" value="検索">
+				</td>
+	</form>
+			</tr>
+		</table>
+</div>
+<!--フッターサーチここまで-->
+<div id="footerRecommend"><strong class="bold">おすすめサイト：</strong><a href="https://gpoint.sso.biglobe.ne.jp/">Ｇポイント</a>｜<a href="https://news.biglobe.ne.jp/">ニュース</a>｜<a href="https://travel.biglobe.ne.jp/">旅行</a></div>
+<div id="comFooter"></div>
+<script type="text/javascript">
+   var PrivacyMarkIcon = "/pc/common/img/footer_icon01.png";
+   var SafeSecurityIcon = "/pc/common/img/footer_icon02.gif";
+  document.write('<scr' + 'ipt type="text/javascript" src="https://top.bcdn.jp/j/ft_com/com_footer.js?' + (function(){var d=new Date(); return ''+d.getFullYear()+(d.getMonth()+1)+d.getDate();}()) + '" charset="utf-8" async></scr' + 'ipt>');
+</script>
+
+<div id="footerCopyright">
+	<script type="text/javascript" src="/pc/common/js/footer.js"></script>
+</div>
+</div>
+<!-- END : フッター -->
+
+        <!-- BIGLOBE共通フッタ(footer.html) ここまで -->
+      </div>
+
+    </div>
+  </div>
+
+</body>
+
+</html>

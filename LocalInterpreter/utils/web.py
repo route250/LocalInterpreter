@@ -494,7 +494,7 @@ def xgoogle_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->str:
     result_text += "# Search result:\n\n"
     if isinstance(result_json,(list,tuple)):
         for i,item in enumerate(result_json):
-            err:str|None = item.get('error')
+            err:str|None = item.get('err')
             title:str = item.get('title','')
             link:str = item.get('link','')
             snippet:str = item.get('snippet','')
@@ -513,7 +513,7 @@ def google_search( keyword, *,lang:str='ja', num:int=5, debug=False ) ->str:
     result_text += "# Search result:\n\n"
     if isinstance(result_json,(list,tuple)):
         for i,item in enumerate(result_json):
-            err:str|None = item.get('error')
+            err:str|None = item.get('err')
             title:str = item.get('title','')
             link:str = item.get('link','')
             snippet:str = item.get('snippet','')
@@ -686,13 +686,13 @@ def detect_encoding( buffer:bytes ):
         return 'UTF-8'
     return None
 
-def get_text_from_html(html_data:str|bytes, *, url:str, as_raw=False, as_html=False, keywords=None, debug=False) ->str|None:
+def get_text_from_html(html_data:str|bytes, *, url:str, as_raw=False, as_html=False, keywords=None, debug=False, dump_file:str|None=None) ->str|None:
     try:
         tmpdir = os.path.join('tmp', 'htmldump')
         root = None
         text = None
         result = ''
-        postfix:str|None = None if not debug else "DBG"
+        postfix:str|None = None if not debug and not dump_file else "DBG"
         time_list = [time.time()]
         try:
             if isinstance(html_data,str):
@@ -766,7 +766,7 @@ def get_text_from_html(html_data:str|bytes, *, url:str, as_raw=False, as_html=Fa
         if postfix is not None:
             os.makedirs(tmpdir, exist_ok=True)
             # filename = os.path.join(tmpdir,'dump')
-            filename = get_next_filename(tmpdir, prefix='dump')
+            filename = get_next_filename(tmpdir, prefix='dump') if dump_file is None else dump_file
             filename = f"{filename}{postfix}"
             try:
                 mode = 'w' if isinstance(html_data,str) else 'wb'

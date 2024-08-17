@@ -146,8 +146,18 @@ def xs_join( a:str|None, b:str|None ) -> str|None:
         return b if not xs_is_empty(b) else None
     elif xs_is_empty(b):
         return a
-    return a+b
+    return f"{a}{b}"
 
+def md_join( a:str|None, b:str|None ) -> str|None:
+    """markdownを意識したjoin"""
+    if xs_is_empty(a):
+        return b if not xs_is_empty(b) else None
+    elif xs_is_empty(b):
+        return a
+    if b and len(b)>0 and b[0] in "#|`":
+        b = f"\n{b}"
+    return f"{a}{b}"
+    
 """
 タグを削除するパターン
 1.
@@ -399,8 +409,8 @@ class HtmlTableData:
             text = to_text(elem)
             self.add( text, th=th, cols=cols, rows=rows )
 
-    def is_sep( self, r ):
-        # 切れてる？
+    def is_separated_pos( self, r:int ) ->bool:
+        """行位置rが、rowspanを考慮して全部切れているか？"""
         if r<=0 or len(self._tbl)<=r:
             return True # 先頭と最後なら切れてる
         before_line = self._tbl[r-1]
@@ -414,39 +424,40 @@ class HtmlTableData:
         return True # 切れてる
     
         
-    def row_merge(self, r ):
-        line = self._tbl[r]
-        head_rows = line[0].rows if len(line)>0 else 1
+    def row_merge(self, row:int ) ->int:
+        """rowspanが横一行全部同じなら結合する処理。結合する場合は、セルの値を<br/>で区切る"""
+        line:list[HtmlTableCell] = self._tbl[row]
+        head_rows:int = line[0].rows if len(line)>0 else 1
         if head_rows<=1:
-            return r+head_rows# 2列以下 1列目がrowspan=1なら何もしない
-        if not self.is_sep(r) or not self.is_sep(r+head_rows ):
-            return r+head_rows
-        # 対象Lineだけ抜き出す
-        grp = self._tbl[r:r+head_rows]
+            return row+head_rows# 2列以下 1列目がrowspan=1なら何もしない
+        if not self.is_separated_pos(row) or not self.is_separated_pos(row+head_rows ):
+            return row+head_rows # 1列目の前後で分離できないから何もしない
+        # 結合する対象Lineだけ抜き出す
+        grp:list[list[HtmlTableCell]] = self._tbl[row:row+head_rows]
         # 最大列幅を調べる
-        max_cols = max( len(line) for line in grp )
+        max_cols:int = max( len(line) for line in grp )
         # 改行を含んでないか確認する
         for line in grp:
             for cell in line[1:]:
                 if cell is not None and "\n" in cell.text:
-                    return r+head_rows # セル内で改行があるので何もしない
+                    return row+head_rows # セル内で改行があるので何もしない
         # 行マージ可能
-        new_line = [ line[0] ]
+        new_line = [ grp[0][0] ]
         for c in range(1,max_cols):
-            before_cell = None
-            text2 = []
+            before_cell:HtmlTableCell|None = None
+            text2:list[str] = []
             for line in grp:
-                cell = line[c] if c<len(line) else None
+                cell:HtmlTableCell|None = line[c] if c<len(line) else None
                 if cell and cell is before_cell:
                     cell = None # 前の行と同じセルならブランクとする
                 text2.append( cell.text if cell and cell.text else "" )
                 before_cell = cell
             cell = HtmlTableCell( "\n".join(text2) )
             new_line.append( cell )
-        self._tbl[r] = new_line
-        for r in range(r+1, r+head_rows):
-            del self._tbl[r]
-        return r+1
+        self._tbl[row] = new_line
+        for r in range(row+1, row+head_rows):
+            del self._tbl[row+1]
+        return row+1
 
     def to_markdown(self):
         if len(self._tbl)==0:
@@ -547,7 +558,7 @@ md_post_map = {
     'h3': "\n",
     'h4': "\n",
 }
-def to_text(elem:Elem):
+def to_text(elem:Elem|None) ->str:
     if elem is None:
         return ''
     if elem.tag == 'table':
@@ -575,7 +586,7 @@ def to_text(elem:Elem):
 def child_to_text( text:str, elem:Elem ) ->str:
     text = xs_join(text,xs_trimA(elem.text))
     for child in elem:
-        text = xs_join(text,to_text(child))
+        text = md_join(text,to_text(child))
         text = xs_join(text, xs_trimA(child.tail) )
     return text
 

@@ -49,7 +49,7 @@ def test_get_text_from_url():
 
 def test_get_text_from_testdata():
     input_dir = os.path.join( 'testData','web' )
-    output_dir = os.path.join( 'tmp', 'web' )
+    output_dir = os.path.join( 'tmp', 'testData', 'web' )
     os.makedirs( output_dir, exist_ok=True )
     files = [file for file in os.listdir( input_dir ) if file.startswith('case') and file.endswith('.html')]
     for file in files:
@@ -67,12 +67,18 @@ def test_get_text_from_testdata():
             with open( input_text, 'r' ) as stream:
                 actual_text = stream.read()
         #
-        text = web.get_text_from_html( html_bytes, url=input_file, debug=True )
+        dump_file=os.path.join( output_dir, f"{case_name}" )
+        text:str|None = web.get_text_from_html( html_bytes, url=input_file, debug=False, dump_file=dump_file )
+        if text is None:
+            print( "ERROR" )
+            continue
         #
         output_file=os.path.join( output_dir, f"{case_name}.md" )
         with open( output_file, 'w' ) as stream:
             stream.write(text)
-        if actual_text is not None:
+        if actual_text is None:
+            print( "NO DATA")
+        else:
             if actual_text != text:
                 print( "ERROR!" )
             else:
@@ -100,15 +106,16 @@ def test_searchx():
 def main():
     from dotenv import load_dotenv, find_dotenv
     load_dotenv( find_dotenv('.env_google') )
-    search_result = web.google_search( 'OpenAI',num=3 )
+    search_result = web.google_search_json( 'OpenAI',num=3 )
     for res in search_result:
-        title = res.get('title')
-        link = res.get('link')
-        snippet = res.get('snippet')
+        title:str|None = res.get('title')
+        link:str|None = res.get('link')
+        snippet:str|None = res.get('snippet')
         print("==========================================")
         print(f"# {title} {link}\n{snippet}")
-        content = web.get_text_from_url(link)
-        print(f"## content\n{content}")
+        if link:
+            content = web.get_text_from_url(link)
+            print(f"## content\n{content}")
 
 if __name__ == "__main__":
     #get_html()
