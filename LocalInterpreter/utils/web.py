@@ -749,9 +749,10 @@ def get_text_from_html(html_data:str|bytes, *, url:str, as_raw=False, as_html=Fa
             err:str = str(ex).lower()
             if "unicode" in err or "encode" in err:
                 logger.error(f"{err} {url}")
+                postfix = "ENCODE"
             else:
                 logger.exception(f'can not summary html? {url}')
-            postfix = "ERR"
+                postfix = "ERR"
 
         update_list_with_value(time_list,7,time.time())
         t_all = time_list[-1] - time_list[0]
