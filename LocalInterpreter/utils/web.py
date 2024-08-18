@@ -169,13 +169,21 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
     keyword_groups, timelimit = convert_keyword( keyword )
 
     group_results:list[list[LinkInfo]] = []
+    rate_limit:bool = False
     t1:float = time.time()
-    for grp in keyword_groups:
-        t11:float = time.time()
-        gsearch_results:list[LinkInfo] = await _a_duckduckgo_search_api( grp, timelimit=timelimit, lang=lang, num=xnum, debug=debug )
-        t12:float = time.time()
-        # print(f"[DDGS2] api time: {t12-t11:.3f}(sec)")
-        group_results.append(gsearch_results)
+    for i,grp in enumerate(keyword_groups):
+        if i>0:
+            await asyncio.sleep(1.1)
+        try:
+            t11:float = time.time()
+            gsearch_results:list[LinkInfo] = await _a_duckduckgo_search_api( grp, timelimit=timelimit, lang=lang, num=xnum, debug=debug )
+            t12:float = time.time()
+            if debug:
+                print(f"[DDGS2] api time: {t12-t11:.3f}(sec)")
+            group_results.append(gsearch_results)
+        except RatelimitException:
+            rate_limit = True
+            break
     t2:float = time.time()
 
     # 結合
@@ -193,7 +201,10 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
                     break
         
     if not isinstance(search_results,list) or len(search_results)==0:
-        return []
+        if rate_limit:
+            return [ LinkInfo( title='duckduckgo API rate limit reached.', link='https://duckduckgo.com', snippet='duckduckgo API rate limit reached.', err='duckduckgo API rate limit reached.')]
+        else:
+            return []
 
     # 会話履歴
     prompt = None
@@ -253,10 +264,12 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
                     if ok:
                         results.insert(ok_count,res)
                         ok_count += 1
-                        # print(f"[DDGS2.TASK] reslt {idx} OK {ok_count}")
+                        if debug:
+                            print(f"[DDGS2.TASK] reslt {idx} OK {ok_count}")
                     else:
                         results.append(res)
-                        # print(f"[DDGS2.TASK] reslt {idx} NG {ok_count}")
+                        if debug:
+                            print(f"[DDGS2.TASK] reslt {idx} NG {ok_count}")
             else:
                 new.append( (idx,task) )
         task_list = new
@@ -265,23 +278,27 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
         tt:float = t5 - t3
         if ok_count>0:
             if tt>limit2:
-                # print(f"[DDGS2.TASK] stop2 {ok_count} {tt:.3f}(sec)")
+                if debug:
+                    print(f"[DDGS2.TASK] stop2 {ok_count} {tt:.3f}(sec)")
                 break
         else:
             if tt>limit1:
-                # print(f"[DDGS2.TASK] stop1 {ok_count} {tt:.3f}(sec)")
+                if debug:
+                    print(f"[DDGS2.TASK] stop1 {ok_count} {tt:.3f}(sec)")
                 break
         await asyncio.sleep(0.2)
 
     for idx,task in task_list:
-        # print(f"[DDGS2.TASK] cancel {idx}")
+        if debug:
+            print(f"[DDGS2.TASK] cancel {idx}")
         try:
             task.cancel()
         except:
             pass
 
     t6 = time.time()
-    # print(f"[TASK] end result {len(results)} {t2-t1:.3f}(sec) {t6-t3:.3f}(sec) {t6-t1:.3f}(sec)")
+    if debug:
+        print(f"[TASK] end result {len(results)} {t2-t1:.3f}(sec) {t6-t3:.3f}(sec) {t6-t1:.3f}(sec)")
     return results[:num]
 
 async def _a_th_duckduckgo_search_get_text( item:LinkInfo, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ) ->tuple[LinkInfo|None,bool]:

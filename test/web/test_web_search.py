@@ -3,12 +3,15 @@ import os
 import asyncio
 import json
 import time
+from datetime import datetime, timedelta
 sys.path.append(os.getcwd())
 import LocalInterpreter.utils.web as web
 from LocalInterpreter.utils.web import LinkInfo
 
 def test_searchx():
-    keyword:str = '京都の天気予報 2024年7月26日'
+    t = datetime.now() + timedelta(days=1)
+    day = t.strftime('%Y年%m月%d日')
+    keyword:str = f'京都の天気予報 {day}'
     messages:list[dict] = [
         {'role': 'assistant', 'content': '{"text_to_speech": "よお、おひるだぜ。今日は蒸し暑いな、ブラザー。そんなとこで何してんの？"}'},
         {'role': 'user', 'content': 'ぼーっとな'},

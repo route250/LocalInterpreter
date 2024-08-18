@@ -2,6 +2,7 @@ from datetime import datetime,timedelta
 import pandas as pd
 from pytrends.request import TrendReq
 from LocalInterpreter.utils import web
+from LocalInterpreter.utils.web import LinkInfo
 
 import logging
 logger = logging.getLogger('TrendsUtil')
@@ -124,7 +125,7 @@ def today_searches_result( *, lang='ja', num=10, debug=False):
     yesterday = datetime.now() - timedelta(days=3)
     yesterday_str:str = yesterday.strftime("%Y-%m-%d")
     query = f"( {search_keywords} ) after:{yesterday_str}"
-    result_all_list:list[dict] = web.duckduckgo_search_json( query, lang=lang, num=20, debug=debug)
+    result_all_list:list[LinkInfo] = web.duckduckgo_search_json( query, lang=lang, num=20, debug=debug)
     # {'title':title, 'link':link, 'snippet': snippet }
 
     counter = {}
