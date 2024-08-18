@@ -6,6 +6,7 @@ import math
 import re
 import time
 import json
+import hashlib
 import itertools
 from urllib import request
 from urllib.error import URLError, HTTPError
@@ -34,6 +35,13 @@ logger = logging.getLogger('WebUtil')
 
 ENV_GCP_API_KEY='GCP_API_KEY'
 ENV_GCP_CSE_ID='GCP_CSE_ID'
+
+def to_md5( *args ) ->str:
+    text:str = '\n'.join( [str(s) for s in args] )
+    md5_hash = hashlib.md5()
+    md5_hash.update(text.encode('utf-8'))
+    result:str = md5_hash.hexdigest()
+    return result
 
 class LinkInfo(TypedDict,total=False):
     title:str
@@ -157,28 +165,35 @@ def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, max_l
 async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
 
     xnum = min( num*4, 100 )
+    # キーワード分解
+    keyword_groups, timelimit = convert_keyword( keyword )
+
+    group_results:list[list[LinkInfo]] = []
     t1:float = time.time()
-    search_results:list[LinkInfo] = await _a_duckduckgo_search_api( keyword, lang=lang, num=xnum, debug=debug )
+    for grp in keyword_groups:
+        t11:float = time.time()
+        gsearch_results:list[LinkInfo] = await _a_duckduckgo_search_api( grp, timelimit=timelimit, lang=lang, num=xnum, debug=debug )
+        t12:float = time.time()
+        # print(f"[DDGS2] api time: {t12-t11:.3f}(sec)")
+        group_results.append(gsearch_results)
     t2:float = time.time()
+
+    # 結合
+    duplicate:dict = {}
+    search_results=[]
+    while len(group_results):
+        group_results = [ grp for grp in group_results if len(grp)>0 ]
+        for grp in group_results:
+            while len(grp)>0:
+                item = grp.pop(0)
+                link:str|None = item.get('link')
+                if link and link not in duplicate:
+                    search_results.append( item )
+                    duplicate[link]='x'
+                    break
+        
     if not isinstance(search_results,list) or len(search_results)==0:
         return []
-
-    # キーワード分解
-    words = []
-    for w in keyword.split():
-        # 特定のキーワードをスキップ
-        if w.startswith('-') or w.startswith('after:') or w.startswith('before:'):
-            continue
-        if w == '(' or w == ')' or w=='AND' or w=='OR':
-            continue
-
-        if 'の' in w:
-            # 「の」で分割して部分を追加
-            split_parts = [n.strip() for n in w.split('の') if n.strip()]
-            words.extend(split_parts)
-        else:
-            # キーワードを追加
-            words.append(w)
 
     # 会話履歴
     prompt = None
@@ -219,39 +234,57 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
 
     t3:float = time.time()
     results:list[LinkInfo]=[]
-    tasks:list[Task] =[ asyncio.create_task( _a_th_duckduckgo_search( item, prompt_fmt=prompt, lang=lang, debug=debug ) ) for item in search_results ]
-    t4:float = time.time()
-    i=0
-    for idx, task in enumerate(tasks):
-        if i<num:
-            print(f"[TASK] await {idx}")
-            res:LinkInfo|None
-            res, ok = await task
-            if res:
-                if ok:
-                    results.insert(i,res)
-                    i+=1
-                else:
-                    results.append(res)
-            t5 = time.time()
-            tt:float = t5 - t4
-            if tt>30 and i==0:
-                print(f"[TASK] abort {idx} result {i} {tt}(sec)")
-                i=num
-            elif tt>15 and i>0:
-                print(f"[TASK] abort {idx} result {i} {tt}(sec)")
-                i=num
+    limit1:float = 30
+    limit2:float = 15
+    task_count:int = 0
+    task_list:list[tuple[int,Task[tuple[LinkInfo|None,bool]]]] = []
+    ok_count:int = 0
+    while ok_count<num and len(search_results)>0:
+        while len(task_list)<3 and len(search_results)>0:
+            item = search_results.pop(0)
+            task:Task[tuple[LinkInfo|None,bool]] = asyncio.create_task( _a_th_duckduckgo_search_get_text( item, prompt_fmt=prompt, lang=lang, debug=debug ) )
+            task_count+=1
+            task_list.append( (task_count,task) )
+        new:list[tuple[int,Task[tuple[LinkInfo|None,bool]]]] = []
+        for idx,task in task_list:
+            if task.done():
+                res,ok = task.result()
+                if res:
+                    if ok:
+                        results.insert(ok_count,res)
+                        ok_count += 1
+                        # print(f"[DDGS2.TASK] reslt {idx} OK {ok_count}")
+                    else:
+                        results.append(res)
+                        # print(f"[DDGS2.TASK] reslt {idx} NG {ok_count}")
+            else:
+                new.append( (idx,task) )
+        task_list = new
+
+        t5 = time.time()
+        tt:float = t5 - t3
+        if ok_count>0:
+            if tt>limit2:
+                # print(f"[DDGS2.TASK] stop2 {ok_count} {tt:.3f}(sec)")
+                break
         else:
-            print(f"[TASK] cancel {idx}")
-            try:
-                task.cancel()
-            except:
-                pass
+            if tt>limit1:
+                # print(f"[DDGS2.TASK] stop1 {ok_count} {tt:.3f}(sec)")
+                break
+        await asyncio.sleep(0.2)
+
+    for idx,task in task_list:
+        # print(f"[DDGS2.TASK] cancel {idx}")
+        try:
+            task.cancel()
+        except:
+            pass
+
     t6 = time.time()
-    print(f"[TASK] end result {len(results)} {t2-t1}(sec) {t6-t4}(sec) {t6-t1}(sec)")
+    # print(f"[TASK] end result {len(results)} {t2-t1:.3f}(sec) {t6-t3:.3f}(sec) {t6-t1:.3f}(sec)")
     return results[:num]
 
-async def _a_th_duckduckgo_search( item:LinkInfo, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ) ->tuple[LinkInfo|None,bool]:
+async def _a_th_duckduckgo_search_get_text( item:LinkInfo, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ) ->tuple[LinkInfo|None,bool]:
     # 検索結果からURL
     link = item.get('link')
     if not link:
@@ -386,59 +419,67 @@ def convert_keyword( expression:str|list[str] ) ->tuple[list[str],str|None]:
         timelimit = ".." + before
     return new_expression, timelimit
 
-async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, num:int=10, debug=False ) ->list[LinkInfo]:
-    # google風検索条件を変換する
-    keyword_groups, timelimit = convert_keyword( keyword )
+_ddgs_rate_limit_time:float = 0
+
+async def _a_duckduckgo_search_api( keyword, *, lang:str|None=None, timelimit:str|None=None, num:int=10, debug=False ) ->list[LinkInfo]:
+    global _ddgs_rate_limit_time
+
     # リージョン
     if not isinstance(lang,str) or 'JA' in lang.upper() or 'JP' in lang.upper():
         region = 'jp-jp'
     else:
         region = 'us-en'
 
-    logger.info(f"[DUCKDUCKGO] region:{region} input keyword:{keyword}")
-    logger.info(f"[DUCKDUCKGO] search keyword:{keyword_groups} {timelimit}")
+    logger.info(f"[DUCKDUCKGO] query:{keyword} timelimit:{timelimit} num:{num} region:{region}")
     # クエリ
-    duplicate:dict = {}
-    group_results=[]
     with AsyncDDGS() as ddgs:
-        for grp in keyword_groups:
-            query = f"{grp} -site:youtube.com -site:facebook.com -site:instagram.com -site:twitter.com"
-            logger.info(f"[DUCKDUCKGO] group:{query} {timelimit}")
-            max_r:int = 3
-            for r in range(max_r):
-                try:
-                    results = await ddgs.atext(
-                        keywords=query,      # 検索ワード
-                        region=region,       # リージョン 日本は"jp-jp",指定なしの場合は"wt-wt"
-                        safesearch='moderate',     # セーフサーチOFF->"off",ON->"on",標準->"moderate"
-                        timelimit=timelimit,       # 期間指定 指定なし->None,過去1日->"d",過去1週間->"w",過去1か月->"m",過去1年->"y"
-                        max_results=num         # 取得件数
-                    )
-                except Exception as ex:
-                    if r+1 < max_r:
-                        if isinstance(ex,RatelimitException) or isinstance(ex,TimeoutException):
-                            await asyncio.sleep(1.2)
-                            ddgs._exception_event.clear()
-                            continue
-                    raise ex
-            # 重複除去
-            filterd_results:list[LinkInfo] = []
-            for item in results:
-                link:str = item.get('href','')
-                if link not in duplicate:
-                    duplicate[link] = 'x'
-                    title:str = item.get('title','')
-                    snippet:str = item.get('body','')
-                    filterd_results.append( {'title':title, 'link':link, 'snippet': snippet, 'query': grp })
-            group_results.append(filterd_results)
-    # 結合
-    result_json=[]
-    maxlen = max( [len(grp) for grp in group_results])
-    for i in range(maxlen):
-        for grp in group_results:
-            if i<len(grp):
-                item = grp[i]
-                result_json.append(item)
+        query = f"{keyword} -site:youtube.com -site:facebook.com -site:instagram.com -site:twitter.com"
+        max_r:int = 3
+        for r in range(max_r):
+            try:
+                key:str = to_md5( query, region, timelimit, num )
+                cache_file:str = os.path.join( 'tmp','ddgs_cache', key)
+                if os.path.exists(cache_file):
+                    try:
+                        with open(cache_file,'r',encoding='utf-8') as stream:
+                            results = json.load(stream)
+                        break
+                    except:
+                        os.remove(cache_file)
+                #----
+                tt0:float = time.time()
+                print(f"### ddgs {query} max_results={num}")
+                results = await ddgs.atext(
+                    keywords=query,      # 検索ワード
+                    region=region,       # リージョン 日本は"jp-jp",指定なしの場合は"wt-wt"
+                    safesearch='moderate',     # セーフサーチOFF->"off",ON->"on",標準->"moderate"
+                    timelimit=timelimit,       # 期間指定 指定なし->None,過去1日->"d",過去1週間->"w",過去1か月->"m",過去1年->"y"
+                    max_results=num         # 取得件数
+                )
+                _ddgs_rate_limit_time = 0.0
+                tt1:float = time.time()
+                print(f"### ddgs {query} max_results={num} time {tt1-tt0:.3f}(sec)")
+                os.makedirs( os.path.dirname(cache_file), exist_ok=True )
+                with open(cache_file,'w',encoding='utf-8') as stream:
+                    json.dump(results,stream,ensure_ascii=False,indent=4)
+                break
+            except Exception as ex:
+                if isinstance(ex,RatelimitException) and _ddgs_rate_limit_time<=1:
+                    _ddgs_rate_limit_time = time.time()
+                if r+1 < max_r:
+                    if isinstance(ex,RatelimitException) or isinstance(ex,TimeoutException):
+                        print(f"ddgs RateLimit sleep")
+                        await asyncio.sleep(1.2)
+                        ddgs._exception_event.clear()
+                        continue
+                raise ex
+    # 変換
+    result_json:list[LinkInfo] = []
+    for item in results:
+        link:str = item.get('href','')
+        title:str = item.get('title','')
+        snippet:str = item.get('body','')
+        result_json.append( {'title':title, 'link':link, 'snippet': snippet, 'query': keyword })
 
     return result_json
 
