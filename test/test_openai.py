@@ -18,7 +18,7 @@ from openai import Stream
 # from LocalInterpreter.service.schema import ServiceSchema
 from LocalInterpreter.service.web_service import WebGetService, WebSearchService, WebTrendService
 from LocalInterpreter.service.openai_tools import OpenAITools
-from LocalInterpreter.utils.openai_util import OpenAI_stream_decorder, OpenAI_stream_iterator
+from LocalInterpreter.utils.openai_util import OPENAI_DEFAULT_MODEL, OpenAI_stream_decorder, OpenAI_stream_iterator
 
 def test_tools_call():
     client:OpenAI = OpenAI()
@@ -46,7 +46,7 @@ def test_tools_call():
     request_messages.append( { 'role':'system', 'content':'今日のトレンドは？' } )
     stream:ChatCompletion = client.chat.completions.create(
             messages=request_messages,
-            model='gpt-3.5-turbo', max_tokens=1000,
+            model=OPENAI_DEFAULT_MODEL, max_tokens=1000,
             tools=tool_list,
     )
     j=stream.to_json(indent=2)
@@ -85,7 +85,7 @@ def test_to_func():
         print( json.dumps( request_messages, ensure_ascii=False, indent=4 ))
         comp:ChatCompletion = client.chat.completions.create(
                 messages=request_messages,
-                model='gpt-3.5-turbo', max_tokens=1000,
+                model=OPENAI_DEFAULT_MODEL, max_tokens=1000,
                 tools=tool_list, tool_choice="auto",
         )
         print("===REQSPONSE===")
@@ -135,7 +135,7 @@ Please perform the following actions.
         try:        
             stream:Stream = client.chat.completions.create(
                 messages=request_messages,
-                model='gpt-3.5-turbo', max_tokens=1000,
+                model=OPENAI_DEFAULT_MODEL, max_tokens=1000,
                 tools=tool_list, tool_choice="auto", parallel_tool_calls=True,
                 stream=True, stream_options={'include_usage':True},
                 response_format={ "type": "json_object" },

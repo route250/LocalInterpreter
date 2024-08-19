@@ -18,12 +18,14 @@ from .JsonStreamParser import JsonStreamParser
 import logging
 logger = logging.getLogger('OpenAIutil')
 
-OPENAI_DEFAULT_MODEL='gpt-4o-mini'
+OPENAI_DEFAULT_MODEL:str='gpt-4o-mini'
+OPENAI_MODEL_LIST:tuple= ('gpt-4o-mini', 'gpt-4', 'gpt-4-turbo')
 
 def to_openai_llm_model( model:str|None=None ) ->str:
     if not isinstance(model,str) or len(model)==0:
         return OPENAI_DEFAULT_MODEL
-    logger.warn(f'invalid model {model}')
+    if model not in OPENAI_MODEL_LIST:
+        logger.warn(f'invalid model {model}')
     return model
 
 def get_max_input_token( model:str|None ) ->int:
