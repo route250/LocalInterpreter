@@ -164,48 +164,7 @@ def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, max_l
 
 async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
 
-    xnum = min( num*4, 100 )
-    # キーワード分解
-    keyword_groups, timelimit = convert_keyword( keyword )
-
-    group_results:list[list[LinkInfo]] = []
-    rate_limit:bool = False
     t1:float = time.time()
-    for i,grp in enumerate(keyword_groups):
-        if i>0:
-            await asyncio.sleep(1.1)
-        try:
-            t11:float = time.time()
-            gsearch_results:list[LinkInfo] = await _a_duckduckgo_search_api( grp, timelimit=timelimit, lang=lang, num=xnum, debug=debug )
-            t12:float = time.time()
-            if debug:
-                print(f"[DDGS2] api time: {t12-t11:.3f}(sec)")
-            group_results.append(gsearch_results)
-        except RatelimitException:
-            rate_limit = True
-            break
-    t2:float = time.time()
-
-    # 結合
-    duplicate:dict = {}
-    search_results=[]
-    while len(group_results):
-        group_results = [ grp for grp in group_results if len(grp)>0 ]
-        for grp in group_results:
-            while len(grp)>0:
-                item = grp.pop(0)
-                link:str|None = item.get('link')
-                if link and link not in duplicate:
-                    search_results.append( item )
-                    duplicate[link]='x'
-                    break
-        
-    if not isinstance(search_results,list) or len(search_results)==0:
-        if rate_limit:
-            return [ LinkInfo( title='duckduckgo API rate limit reached.', link='https://duckduckgo.com', snippet='duckduckgo API rate limit reached.', err='duckduckgo API rate limit reached.')]
-        else:
-            return []
-
     # 会話履歴
     prompt = None
     if isinstance(messages,list):
@@ -231,48 +190,89 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
         NOINFO='NoInfo'
         prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword)}"
         prompt = f"{prompt}\n\n# 検索結果のURLから取得したテキスト\n```\n{{}}\n```"
-        prompt = f"{prompt}\n\n# 要約処理\n"
+        prompt = f"{prompt}\n\n# 判定処理\n"
         prompt = f"{prompt} 1. 会話履歴と検索キーワードから、どのような情報を探しているかを想定して下さい。\n"
-        prompt = f"{prompt} 1. 取得したテキストに検索キーワードが含まれているか判断する。間違えやすいワードに注意\n"
+        prompt = f"{prompt} 2. 取得したテキストに検索キーワードが含まれているか判断する。間違えやすいワードに注意\n"
         prompt = f"{prompt}   例) '東京都' と '京都' は異る地名\n"
-        prompt = f"{prompt} 2. 取得したテキストに、情報が無ければ{NOINFO}だけ出力して終了。\n"
-        prompt = f"{prompt} 3. 検索キーワード{target}に対応する情報を{slen}文字以内に要約して出力して下さい。\n"
-        prompt = f"{prompt}\n\n# 出力:"
+        prompt = f"{prompt} 3. 取得したテキストに求められている具体的な情報が含まれているか判断する\n"
+        prompt = f"{prompt}\n\n# 要約処理\n"
+        prompt = f"{prompt} 4. 取得したテキストに、検索キーワード{target}に対応する具体的な情報が無ければ{NOINFO}だけ出力して終了。\n"
+        prompt = f"{prompt} 5. 取得したテキストから、検索キーワード{target}に対応する情報だけを{slen}文字以内に要約して出力して下さい。\n"
+        prompt = f"{prompt}    取得したテキストに含まれない情報を出力しないこと\n"
+        prompt = f"{prompt}\n\n# 検索キーワード{target}に対応する具体的な情報:"
     # tasks = [ a_search_check( x, words ) for x in search_results ]
 
     # check_results = await asyncio.gather( *tasks )
     # results = [ r for r in check_results if r ]
 
-    t3:float = time.time()
-    results:list[LinkInfo]=[]
+    # 検索APIの結果件数
+    search_num:int = min( num*4, 100 )
+    # キーワード分解
+    keyword_group_list, timelimit = convert_keyword( keyword )
+
+    duplicate:dict = {}
+    search_results=[]
+
+    search_interval:float = 1.0 # ddgsで検索する間隔(秒)
     limit1:float = 30
     limit2:float = 15
+
+    t3:float = time.time()
+    results:list[LinkInfo]=[]
     task_count:int = 0
-    task_list:list[tuple[int,Task[tuple[LinkInfo|None,bool]]]] = []
+    task_list:list[Task[tuple[LinkInfo|None,bool]]] = []
     ok_count:int = 0
-    while ok_count<num and len(search_results)>0:
+    search_time:float = 0
+    search_exception:Exception|None = None
+    ddgs_total_time:float = 0
+    while ok_count<num and ( len(search_results)>0 or len(keyword_group_list)>0 ):
+        # 検索タスク
+        now:float = time.time()
+        if search_exception is None and len(keyword_group_list)>0 and (now-search_time)>search_interval:
+            try:
+                # 検索する
+                gk:str = keyword_group_list.pop(0)
+                t11:float = time.time()
+                group_results:list[LinkInfo] = await _a_duckduckgo_search_api( gk, timelimit=timelimit, lang=lang, num=search_num, debug=debug )
+                t12:float = time.time()
+                if debug:
+                    print(f"[DDGS] api {gk} time: {t12-t11:.3f}(sec)")
+                ddgs_total_time += (t12-t11)
+                search_time = t12
+                # 検索結果をマージする
+                ins:int=0
+                for item in group_results:
+                    link:str|None = item.get('link')
+                    if link and link not in duplicate:
+                        duplicate[link] = 'x'
+                        search_results.insert( ins*2+1, item )
+                        ins+=1
+            except Exception as ex:
+                search_exception = ex
+        # テキスト化タスク
         while len(task_list)<3 and len(search_results)>0:
             item = search_results.pop(0)
-            task:Task[tuple[LinkInfo|None,bool]] = asyncio.create_task( _a_th_duckduckgo_search_get_text( item, prompt_fmt=prompt, lang=lang, debug=debug ) )
             task_count+=1
-            task_list.append( (task_count,task) )
-        new:list[tuple[int,Task[tuple[LinkInfo|None,bool]]]] = []
-        for idx,task in task_list:
+            task:Task[tuple[LinkInfo|None,bool]] = asyncio.create_task( _a_th_duckduckgo_search_get_text( item, prompt_fmt=prompt, lang=lang, debug=debug ), name=f"T{task_count}" )
+            task_list.append( task )
+        # 結果集計
+        new_task_list:list[Task[tuple[LinkInfo|None,bool]]] = []
+        for task in task_list:
             if task.done():
-                res,ok = task.result()
-                if res:
+                item,ok = task.result()
+                if item:
                     if ok:
-                        results.insert(ok_count,res)
+                        results.insert(ok_count,item)
                         ok_count += 1
                         if debug:
-                            print(f"[DDGS2.TASK] reslt {idx} OK {ok_count}")
+                            print(f"[DDGS2.TASK] reslt {task.get_name()} OK {ok_count}")
                     else:
-                        results.append(res)
+                        results.append(item)
                         if debug:
-                            print(f"[DDGS2.TASK] reslt {idx} NG {ok_count}")
+                            print(f"[DDGS2.TASK] reslt {task.get_name()} NG {ok_count}")
             else:
-                new.append( (idx,task) )
-        task_list = new
+                new_task_list.append( task )
+        task_list = new_task_list
 
         t5 = time.time()
         tt:float = t5 - t3
@@ -288,17 +288,30 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
                 break
         await asyncio.sleep(0.2)
 
-    for idx,task in task_list:
+    for task in task_list:
         if debug:
-            print(f"[DDGS2.TASK] cancel {idx}")
+            print(f"[DDGS2.TASK] cancel {task.get_name()}")
         try:
             task.cancel()
         except:
             pass
 
+    # エラー情報
+    if not isinstance(results,list) or len(results)==0:
+        if search_exception:
+            results = [ LinkInfo(
+                title='aborted duckduckgo search.',
+                link='https://duckduckgo.com',
+                snippet=str(search_exception),
+                err=str(search_exception)
+            )]
+        else:
+            results = []
+
     t6 = time.time()
     if debug:
-        print(f"[TASK] end result {len(results)} {t2-t1:.3f}(sec) {t6-t3:.3f}(sec) {t6-t1:.3f}(sec)")
+        print(f"[TASK] end result {len(results)} {ddgs_total_time:.3f}(sec) {t6-t3-ddgs_total_time:.3f}(sec) {t6-t1:.3f}(sec)")
+
     return results[:num]
 
 async def _a_th_duckduckgo_search_get_text( item:LinkInfo, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ) ->tuple[LinkInfo|None,bool]:
@@ -356,6 +369,9 @@ async def _a_th_duckduckgo_search_get_text( item:LinkInfo, *, prompt_fmt:str|Non
     else:
         start_pos = max( 0, int(len(text)/2)-1000)
     text = text[start_pos:start_pos+2000]
+    title:str|None = item.get('title')
+    if title:
+        text = f"ContentTitle: {title}\n\nContentBody:\n\n{text}"
 
     # 短く要約する
     try:
