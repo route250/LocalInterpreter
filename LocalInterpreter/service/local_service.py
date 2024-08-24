@@ -41,10 +41,10 @@ class QuartServiceBase(BaseService):
         res_json, code = self.to_response_json( res_data, code )
         return res_json, code
 
-    async def acall(self,args:dict, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
-        return self.call(args, messages=messages )
+    async def acall(self,args:dict, *, messages:list[dict]|None=None, usage=None ) ->tuple[dict|str,int]:
+        return self.call(args, messages=messages, usage=usage )
 
-    def call(self,args:dict, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
+    def call(self,args:dict, *, messages:list[dict]|None=None, usage=None ) ->tuple[dict|str,int]:
         # asyncio.run(self.acall(args))
         raise NotImplementedError()
 

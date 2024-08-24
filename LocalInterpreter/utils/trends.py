@@ -119,13 +119,13 @@ def suggestions( keyword ) ->list[str]:
 # 		注目 ー は検索ボリュームの上昇率が高いもの
 
 
-def today_searches_result( *, lang='ja', num=10, debug=False):
+def today_searches_result( *, lang='ja', num=10, usage=None, debug=False):
     word_list:list[str] = today_searches()
     search_keywords = " OR ".join([ f"\"{w}\"" for w in word_list])
     yesterday = datetime.now() - timedelta(days=3)
     yesterday_str:str = yesterday.strftime("%Y-%m-%d")
     query = f"( {search_keywords} ) after:{yesterday_str}"
-    result_all_list:list[LinkInfo] = web.duckduckgo_search_json( query, lang=lang, num=20, debug=debug)
+    result_all_list:list[LinkInfo] = web.duckduckgo_search_json( query, lang=lang, num=20, usage=usage, debug=debug)
     # {'title':title, 'link':link, 'snippet': snippet }
 
     counter = {}

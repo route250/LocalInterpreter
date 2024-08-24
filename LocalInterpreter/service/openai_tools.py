@@ -2,6 +2,7 @@
 import traceback
 import json
 
+from openai.types.completion_usage import CompletionUsage
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
@@ -23,12 +24,12 @@ class OpenAITools(ServiceSchema):
     def add_service(self,service:QuartServiceBase):
         ServiceSchema.add_service(self,f"x{len(self.path_dict)}",service)
 
-    def call( self, fname, args, *, messages:list[dict]|None=None ) ->tuple[dict,int]:
+    def call( self, fname, args, *, messages:list[dict]|None=None, usage:CompletionUsage|None=None ) ->tuple[dict,int]:
         for path,method_dict in self.path_dict.items():
             for method,service in method_dict.items():
                 if isinstance(service,QuartServiceBase):
                     if fname==service.name:
-                        ret,code = service.call(args, messages=messages)
+                        ret,code = service.call(args, messages=messages, usage=usage )
                         return ret,code
         raise ValueError(f"not found tool {fname}")
 
@@ -39,7 +40,7 @@ class OpenAITools(ServiceSchema):
                     if fname==service.name or fname==service.get_func_name():
                         return service
 
-    def tool_run( self, call_id, tool_name, tool_args, *, messages:list[dict]|None=None ) ->dict:
+    def tool_run( self, call_id, tool_name, tool_args, *, messages:list[dict]|None=None, usage:CompletionUsage|None=None ) ->dict:
         logger.info(f"[TOOL_RUN]{call_id} {tool_name} {tool_args}")
         service:QuartServiceBase|None = self.get_service( tool_name )
         if not service:
@@ -49,7 +50,7 @@ class OpenAITools(ServiceSchema):
         except Exception as ex:
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: Can not parse arguments: {ex}"}
         try:
-            res_data,code = service.call( args, messages=messages )
+            res_data,code = service.call( args, messages=messages, usage=usage )
             if isinstance(res_data,dict):
                 # dictならそのままテキスト化
                 res_text = json.dumps( res_data, ensure_ascii=True )
@@ -67,7 +68,7 @@ class OpenAITools(ServiceSchema):
             logger.exception('error on tool')
             return {'role':'tool', 'tool_call_id':call_id, 'content':f"ERROR: {ex.__class__.__name__}: {ex}"}
         
-    def tool_call( self, chatcomp:ChatCompletion, *, messages:list[dict]|None=None ) ->list[dict]:
+    def tool_call( self, chatcomp:ChatCompletion, *, messages:list[dict]|None=None, usage:CompletionUsage|None=None ) ->list[dict]:
         if not isinstance(chatcomp,ChatCompletion):
             raise ValueError('invalid arguments')
         result=[]
@@ -98,7 +99,7 @@ class OpenAITools(ServiceSchema):
             pass
 
         for fid, service, args in tools:
-            ret,code = service.call(args, messages=messages)
+            ret = service.call(args, messages=messages, usage=usage)
             result.append( {'role':'tool', 'tool_call_id':fid, 'content':ret} )
         return result
 
@@ -108,7 +109,7 @@ class OpenAITools(ServiceSchema):
         fname = f.name
         args:dict = json.loads(f.arguments) if f.arguments else {}
         service:QuartServiceBase = self.get_service( fname )
-        ret = service.call( args )
+        ret,code = service.call( args )
         return {'role':'tool', 'tool_call_id':fid, 'content':ret}
 
 # def test_to_json():

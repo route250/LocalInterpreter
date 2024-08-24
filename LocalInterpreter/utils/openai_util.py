@@ -10,6 +10,7 @@ from httpx import Timeout
 
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall,ChatCompletionChunk
 from openai import Stream
+from openai.types.completion_usage import CompletionUsage
 import tiktoken
 
 from .logger_util import ApiLog
@@ -81,7 +82,17 @@ def is_japanese_text( text:str ):
     ret = all(ord(char) < 128 for char in text) == False
     return ret
 
-def summarize_web_content( text:str, *, length:int|None=None, messages:list[dict]|None=None, model:str|None=None, debug=False ) ->str:
+def update_usage( u1:CompletionUsage|None, u2:CompletionUsage|None ) ->CompletionUsage|None:
+    if isinstance(u1,CompletionUsage) and isinstance(u2,CompletionUsage):
+        u1.prompt_tokens += u2.prompt_tokens
+        u1.completion_tokens += u2.completion_tokens
+        u1.total_tokens += u2.total_tokens
+        print(f"### usage {u1}")
+    else:
+        print(f"### usage None?")
+    return u1
+
+def summarize_web_content( text:str, *, length:int|None=None, messages:list[dict]|None=None, model:str|None=None, usage:CompletionUsage|None=None, debug=False ) ->str:
     logger.info(f"[SUMMARIZE] len:{len(text)}/{length} {text[:20]}")
 
     # テキストが日本語かどうかを確認
@@ -99,9 +110,9 @@ def summarize_web_content( text:str, *, length:int|None=None, messages:list[dict
         else:
             prompt = f"Summarize the following text:\n\n{text}\n\nSummary:"
 
-    return summarize_text( text, prompt=prompt, model=model )
+    return summarize_text( text, prompt=prompt, model=model, usage=usage )
 
-def summarize_text( text:str, *, prompt:str, model:str|None=None):
+def summarize_text( text:str, *, prompt:str, model:str|None=None, usage:CompletionUsage|None=None):
 
     openai_llm_model = to_openai_llm_model(model)
     openai_timeout:Timeout = Timeout(180.0, connect=5.0, read=15.0)
@@ -119,6 +130,7 @@ def summarize_text( text:str, *, prompt:str, model:str|None=None):
                         model=openai_llm_model,
                         temperature=0,
                 )
+                update_usage( usage, response.usage )
                 ApiLog.log( request_messages, response )
             except Exception as ex:
                 ApiLog.log( request_messages, ex )
@@ -136,7 +148,7 @@ def summarize_text( text:str, *, prompt:str, model:str|None=None):
 
     return text
 
-async def a_summarize_text( text:str, *, prompt:str, model:str|None=None):
+async def a_summarize_text( text:str, *, prompt:str, model:str|None=None, usage:CompletionUsage|None=None):
 
     openai_llm_model = to_openai_llm_model(model)
     openai_timeout:Timeout = Timeout(180.0, connect=5.0, read=15.0)
@@ -154,6 +166,7 @@ async def a_summarize_text( text:str, *, prompt:str, model:str|None=None):
                         model=openai_llm_model,
                         temperature=0,
                 )
+                update_usage( usage, response.usage )
                 ApiLog.log( request_messages, response )
             except Exception as ex:
                 ApiLog.log( request_messages, ex )
@@ -174,7 +187,7 @@ async def a_summarize_text( text:str, *, prompt:str, model:str|None=None):
 KEY_SUMMARY_START="---Start conversation summary:"
 KEY_SUMMARY_END="---End of conversation summary---"
 
-def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_tokens:int=8000, summary_tokens:int=2000, keep_tokens:int=1000, keep_num:int=10, model:str|None=None ):
+def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_tokens:int=8000, summary_tokens:int=2000, keep_tokens:int=1000, keep_num:int=10, model:str|None=None, usage:CompletionUsage|None=None ):
 
     model = to_openai_llm_model(model)
 
@@ -280,7 +293,7 @@ def summarize_conversation( prompts:list[dict], messages:list[dict], *, max_toke
         # 要約出力:
         {KEY_SUMMARY_START}"""
 
-        sum = summarize_text( text, prompt=x_pr, model=model )
+        sum = summarize_text( text, prompt=x_pr, model=model, usage=usage )
         text = sum.replace(KEY_SUMMARY_START,"").replace(KEY_SUMMARY_END,"").strip() if isinstance(sum,str) else ''
 
     if tk>target:

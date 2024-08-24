@@ -32,12 +32,12 @@ class WebSearchService(QuartServiceBase):
         from dotenv import load_dotenv, find_dotenv
         load_dotenv( find_dotenv('.env_google') )
 
-    def call(self,args, *, messages:list[dict]|None=None,debug:bool=False) ->tuple[dict|str,int]:
+    def call(self,args, *, messages:list[dict]|None=None, usage=None, debug:bool=False) ->tuple[dict|str,int]:
         keyword = args.get(INP_KEYWORD)
         if not keyword:
             return f'No {INP_KEYWORD} provided', 400
         try:
-            result:str = web.duckduckgo_search( keyword, messages=messages,debug=debug )
+            result:str = web.duckduckgo_search( keyword, messages=messages, usage=usage, debug=debug )
             return result, 200
         except Exception as e:
             # ToDo ratelimit
@@ -64,7 +64,7 @@ class WebGetService(QuartServiceBase):
         ))
         self.add_response( p200 )
 
-    def call( self, args, *, messages:list[dict]|None=None ) ->tuple[dict|str,int]:
+    def call( self, args, *, messages:list[dict]|None=None, usage=None ) ->tuple[dict|str,int]:
         url = args.get(INP_URL)
         if not url:
             return f'No {INP_URL} provided', 400
@@ -76,7 +76,7 @@ class WebGetService(QuartServiceBase):
             elif len(result)<limit:
                 result = f"The beginning of the text retrieved from the {url}. Don't let it affect your tone.\n```\n{result}\n```\nend of retrieved text"
             elif len(result)>limit:
-                summary_text = web.get_summary_from_text( result, length=limit, messages=messages )
+                summary_text = web.get_summary_from_text( result, length=limit, messages=messages, usage=usage )
                 result = f"The beginning of the summary text retrieved from the {url}. Don't let it affect your tone.\n```\n{summary_text}\n```\nend of retrieved summary text"
             return result, 200
         except Exception as e:
@@ -96,9 +96,9 @@ class WebTrendService(QuartServiceBase):
         ))
         self.add_response( p200 )
 
-    def call(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
+    def call(self,args, *, messages:list[dict]|None=None, usage=None ) ->tuple[dict|str,int]:
         try:
-            result:str = trends.today_searches_result()
+            result:str = trends.today_searches_result(usage=usage)
             return result, 200
         except Exception as ex:
             logger.exception('execution error')

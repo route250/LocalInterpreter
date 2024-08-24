@@ -52,7 +52,7 @@ class PythonService(QuartServiceBase):
     async def before_serving(self):
         await self.repo.setup()
 
-    async def acall(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
+    async def acall(self,args, *, messages:list[dict]|None=None, usage=None ) ->tuple[dict|str,int]:
         # args = await self.request_get_json()
         sessionId:str|None = args.get('sessionId')
         cmd_code:str|None = args.get('code')
@@ -78,12 +78,12 @@ class PythonService(QuartServiceBase):
             logger.exception('execution error')
             return f"{ex}",500
 
-    def call(self,args, *, messages:list[dict]|None=None) ->tuple[dict|str,int]:
+    def call(self,args, *, messages:list[dict]|None=None, usage=None ) ->tuple[dict|str,int]:
         sessionId:str|None = args.get('sessionId')
-        loop:EvLoop = self.repo.get_event_loop(sessionId)
+        loop:EvLoop|None = self.repo.get_event_loop(sessionId)
         if loop is None:
             try:
                 loop = asyncio.get_running_loop()
             except:
                 loop = asyncio.new_event_loop()
-        return loop.run_until_complete(self.acall(args, messages=messages))
+        return loop.run_until_complete(self.acall(args, messages=messages, usage=usage))

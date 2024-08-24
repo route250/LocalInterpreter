@@ -129,8 +129,8 @@ async def a_fetch_html(url:str) ->tuple[str|bytes,str|None]:
 def fetch_html(url:str) ->tuple[str|bytes,str|None]:
     return asyncio.run( a_fetch_html(url) )
 
-def duckduckgo_search( keyword, *, max_length:int=800, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->str:
-    result_json:list[LinkInfo] = duckduckgo_search_json( keyword, max_length=max_length, messages=messages, lang=lang, num=num, debug=debug)
+def duckduckgo_search( keyword, *, max_length:int=800, messages:list[dict]|None=None, usage=None, lang:str='ja', num:int=5, debug=False ) ->str:
+    result_json:list[LinkInfo] = duckduckgo_search_json( keyword, max_length=max_length, messages=messages, usage=usage, lang=lang, num=num, debug=debug)
     result_text = f"# Search keyword: {keyword}\n\n"
     result_text += "# Search result:\n\n"
     if isinstance(result_json,(list,tuple)):
@@ -148,9 +148,9 @@ def duckduckgo_search( keyword, *, max_length:int=800, messages:list[dict]|None=
         result_text += "  no results.\n"
     return result_text
 
-def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, max_length:int=800, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
+def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, usage=None, max_length:int=800, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
     # 非同期コンテキスト外の場合
-    return asyncio.run( a_duckduckgo_search_json( keyword, max_length=max_length, messages=messages, lang=lang, num=num, debug=debug ) )
+    return asyncio.run( a_duckduckgo_search_json( keyword, max_length=max_length, messages=messages, usage=usage, lang=lang, num=num, debug=debug ) )
     # try:
     #     # 現在のイベントループを取得
     #     loop = asyncio.get_running_loop()
@@ -162,15 +162,14 @@ def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, max_l
     # # 非同期関数の場合
     # return loop.run_until_complete( a_duckduckgo_search( keyword, lang=lang, num=num, debug=debug ) )
 
-async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:list[dict]|None=None, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
+async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:list[dict]|None=None, usage=None, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
 
     t1:float = time.time()
     # 会話履歴
-    prompt = None
+    prompt:str=""
+    target:str=""
     if isinstance(messages,list):
         n=0
-        prompt=""
-        target=""
         for i in range(len(messages)-1,-1,-1):
             m = messages[i]
             role = m.get('role')
@@ -185,21 +184,21 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
             prompt = f"# 会話履歴\n{prompt}\n\n"
             target="と会話履歴の内容"
 
-        # 短く要約する
-        slen: int = max_length if isinstance(max_length,int) and max_length>100 else 100
-        NOINFO='NoInfo'
-        prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword)}"
-        prompt = f"{prompt}\n\n# 検索結果のURLから取得したテキスト\n```\n{{}}\n```"
-        prompt = f"{prompt}\n\n# 判定処理\n"
-        prompt = f"{prompt} 1. 会話履歴と検索キーワードから、どのような情報を探しているかを想定して下さい。\n"
-        prompt = f"{prompt} 2. 取得したテキストに検索キーワードが含まれているか判断する。間違えやすいワードに注意\n"
-        prompt = f"{prompt}   例) '東京都' と '京都' は異る地名\n"
-        prompt = f"{prompt} 3. 取得したテキストに求められている具体的な情報が含まれているか判断する\n"
-        prompt = f"{prompt}\n\n# 要約処理\n"
-        prompt = f"{prompt} 4. 取得したテキストに、検索キーワード{target}に対応する具体的な情報が無ければ{NOINFO}だけ出力して終了。\n"
-        prompt = f"{prompt} 5. 取得したテキストから、検索キーワード{target}に対応する情報だけを{slen}文字以内に要約して出力して下さい。\n"
-        prompt = f"{prompt}    取得したテキストに含まれない情報を出力しないこと\n"
-        prompt = f"{prompt}\n\n# 検索キーワード{target}に対応する具体的な情報:"
+    # 短く要約する
+    slen: int = max_length if isinstance(max_length,int) and max_length>100 else 100
+    NOINFO='NoInfo'
+    prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword)}"
+    prompt = f"{prompt}\n\n# 検索結果のURLから取得したテキスト\n```\n{{}}\n```"
+    prompt = f"{prompt}\n\n# 判定処理\n"
+    prompt = f"{prompt} 1. 会話履歴と検索キーワードから、どのような情報を探しているかを想定して下さい。\n"
+    prompt = f"{prompt} 2. 取得したテキストに検索キーワードが含まれているか判断する。間違えやすいワードに注意\n"
+    prompt = f"{prompt}   例) '東京都' と '京都' は異る地名\n"
+    prompt = f"{prompt} 3. 取得したテキストに求められている具体的な情報が含まれているか判断する\n"
+    prompt = f"{prompt}\n\n# 要約処理\n"
+    prompt = f"{prompt} 4. 取得したテキストに、検索キーワード{target}に対応する具体的な情報が無ければ{NOINFO}だけ出力して終了。\n"
+    prompt = f"{prompt} 5. 取得したテキストから、検索キーワード{target}に対応する情報だけを{slen}文字以内に要約して出力して下さい。\n"
+    prompt = f"{prompt}    取得したテキストに含まれない情報を出力しないこと\n"
+    prompt = f"{prompt}\n\n# 検索キーワード{target}に対応する具体的な情報:"
     # tasks = [ a_search_check( x, words ) for x in search_results ]
 
     # check_results = await asyncio.gather( *tasks )
@@ -253,7 +252,7 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
         while len(task_list)<3 and len(search_results)>0:
             item = search_results.pop(0)
             task_count+=1
-            task:Task[tuple[LinkInfo|None,bool]] = asyncio.create_task( _a_th_duckduckgo_search_get_text( item, prompt_fmt=prompt, lang=lang, debug=debug ), name=f"T{task_count}" )
+            task:Task[tuple[LinkInfo|None,bool]] = asyncio.create_task( _a_th_duckduckgo_search_get_text( item, prompt_fmt=prompt, lang=lang, usage=usage, debug=debug ), name=f"T{task_count}" )
             task_list.append( task )
         # 結果集計
         new_task_list:list[Task[tuple[LinkInfo|None,bool]]] = []
@@ -314,7 +313,7 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
 
     return results[:num]
 
-async def _a_th_duckduckgo_search_get_text( item:LinkInfo, *, prompt_fmt:str|None=None, lang:str='ja', debug=False ) ->tuple[LinkInfo|None,bool]:
+async def _a_th_duckduckgo_search_get_text( item:LinkInfo, *, prompt_fmt:str|None=None, lang:str='ja', usage=None, debug=False ) ->tuple[LinkInfo|None,bool]:
     # 検索結果からURL
     link = item.get('link')
     if not link:
@@ -379,7 +378,7 @@ async def _a_th_duckduckgo_search_get_text( item:LinkInfo, *, prompt_fmt:str|Non
             prompt = prompt_fmt.replace('{}',text)
         else:
             prompt = prompt_fmt
-        digest = await a_summarize_text( text, prompt=prompt )
+        digest = await a_summarize_text( text, prompt=prompt, usage=usage )
         t3 = time.time()
         # snippetを更新する
         ok = digest and not 'NoInfo' in digest
@@ -912,7 +911,7 @@ def simple_text_to_chunks( text, chunk_size=2000, overlap=100 ):
         start = end - overlap
     return chunks
 
-def get_summary_from_text( text:str|None,length:int=1024, *, context_size:int|None=None, overlap:int=500, messages:list[dict]|None=None, model:str|None=None, debug=False) ->str:
+def get_summary_from_text( text:str|None,length:int=1024, *, context_size:int|None=None, overlap:int=500, messages:list[dict]|None=None, usage=None, model:str|None=None, debug=False) ->str:
 
     if not text or not isinstance(text,str):
         return ""
@@ -940,7 +939,7 @@ def get_summary_from_text( text:str|None,length:int=1024, *, context_size:int|No
         update:bool = False
         for text in input_list:
             if len(text)>target_length:
-                summary = summarize_web_content( text, length=target_length, messages=messages, model=model, debug=debug )
+                summary = summarize_web_content( text, length=target_length, messages=messages, usage=usage, model=model, debug=debug )
                 output_list.append( summary )
                 update = True
             else:
@@ -953,8 +952,8 @@ def get_summary_from_text( text:str|None,length:int=1024, *, context_size:int|No
 
     return summary_text[:length]
 
-def get_summary_from_url(url:str, length:int=1024, *, messages:list[dict]|None=None, model:str|None=None, debug=False):
+def get_summary_from_url(url:str, length:int=1024, *, messages:list[dict]|None=None, usage=None, model:str|None=None, debug=False):
     """urlからhtmlをgetしてテキスト抽出して要約する"""
     text:str|None = get_text_from_url( url, debug=debug )
     
-    return get_summary_from_text( text, length=length, messages=messages, model=model, debug=debug)
+    return get_summary_from_text( text, length=length, messages=messages, usage=usage, model=model, debug=debug)

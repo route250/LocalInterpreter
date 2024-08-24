@@ -216,7 +216,7 @@ class CodeRepo:
         os.makedirs( cwd, exist_ok=False )
         return (uniq,cwd)
 
-    def get_event_loop(self,sessionId:str) ->EvLoop|None:
+    def get_event_loop(self,sessionId:str|None) ->EvLoop|None:
         # session:CodeSession|None = self.session_list.get(sessionId) if sessionId else None
         return self.loop # if session else None
 
@@ -289,18 +289,18 @@ class CodeSession:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor( self.parent.pool, self.th_send_command, command )
 
-    async def get_output(self):
+    async def get_output(self) ->str:
         self.lasttime:float = time.time()
         if self.process:
             if asyncio.get_running_loop()==self.parent.loop:
                 data = await self._th_get_outputs()
             else:
-                data = self.parent.run_in_executor( self.process.stdout._th_get_outputs )
+                data = await self.parent.run_in_executor( self._th_get_outputs )
             return data
         else:
             return ''
 
-    async def _th_get_outputs(self):
+    async def _th_get_outputs(self) ->str:
         # 結果を取得
         stdout = []
         while True:
@@ -322,7 +322,7 @@ class CodeSession:
             stdout.append(line)
         return ''.join(stdout)
 
-    async def command(self, command ):
+    async def command(self, command ) ->str:
         if command and '\n' in command:
             cmd = json.dumps(command,ensure_ascii=False)
             command = f"exec({cmd})"
