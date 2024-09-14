@@ -83,10 +83,12 @@ async def a_fetch_html(url:str) ->tuple[str|bytes,str|None]:
     logger.info(f"a_fetch_html URL={url}")
     if not url or not url.startswith('http'):
         return b'','url is invalid.'
+    aclient:httpx.AsyncClient|None = None
     try:
         to = 3.0
 
         async with httpx.AsyncClient( timeout=to, follow_redirects=True, max_redirects=2 ) as client:
+            aclient = client
             response:Response = await client.get(url)
             if response.status_code != 200:
                 return b'',f'http response code is {response.status_code}.'
@@ -102,13 +104,15 @@ async def a_fetch_html(url:str) ->tuple[str|bytes,str|None]:
             # バッファの先頭にシーク
             byte_buffer.seek(0)
             bdata:bytes = byte_buffer.getvalue()
-            for cs in [charset_encoding,'utf-8','Shift_JIS']:
-                try:
-                    text = bdata.decode(cs)
-                    return text, None
-                except:
-                    pass
-            return bdata,None
+            await client.aclose()
+            aclient = None
+        for cs in [charset_encoding,'utf-8','Shift_JIS']:
+            try:
+                text = bdata.decode(cs)
+                return text, None
+            except:
+                pass
+        return bdata,None
     except httpx.ConnectTimeout as ex:
         return b'',f'ConnectTimeout {ex}'
     except httpx.ReadTimeout as ex:
@@ -125,7 +129,12 @@ async def a_fetch_html(url:str) ->tuple[str|bytes,str|None]:
     except Exception as ex:
         logger.exception(f"can not get from {url}")
         raise ex
-
+    finally:
+        try:
+            if aclient is not None:
+                await aclient.aclose()
+        except:
+            pass
 def fetch_html(url:str) ->tuple[str|bytes,str|None]:
     return asyncio.run( a_fetch_html(url) )
 
@@ -163,7 +172,7 @@ def duckduckgo_search_json( keyword:str, *, messages:list[dict]|None=None, usage
     # return loop.run_until_complete( a_duckduckgo_search( keyword, lang=lang, num=num, debug=debug ) )
 
 async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:list[dict]|None=None, usage=None, lang:str='ja', num:int=5, debug=False ) ->list[LinkInfo]:
-
+    debug = True
     t1:float = time.time()
     # 会話履歴
     prompt:str=""
@@ -184,10 +193,13 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
             prompt = f"# 会話履歴\n{prompt}\n\n"
             target="と会話履歴の内容"
 
+    # キーワード分解
+    keyword_group_list, timelimit = convert_keyword( keyword )
+    
     # 短く要約する
     slen: int = max_length if isinstance(max_length,int) and max_length>100 else 100
     NOINFO='NoInfo'
-    prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword)}"
+    prompt = f"{prompt}# web検索キーワード\n{' '.join(keyword_group_list)}"
     prompt = f"{prompt}\n\n# 検索結果のURLから取得したテキスト\n```\n{{}}\n```"
     prompt = f"{prompt}\n\n# 判定処理\n"
     prompt = f"{prompt} 1. 会話履歴と検索キーワードから、どのような情報を探しているかを想定して下さい。\n"
@@ -206,8 +218,6 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
 
     # 検索APIの結果件数
     search_num:int = min( num*4, 100 )
-    # キーワード分解
-    keyword_group_list, timelimit = convert_keyword( keyword )
 
     duplicate:dict = {}
     search_results=[]
@@ -224,13 +234,15 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
     search_time:float = 0
     search_exception:Exception|None = None
     ddgs_total_time:float = 0
-    while ok_count<num and ( len(search_results)>0 or len(keyword_group_list)>0 ):
+    while ok_count<num and ( len(task_list)>0 or len(search_results)>0 or (search_exception is None and len(keyword_group_list)>0 ) ):
         # 検索タスク
         now:float = time.time()
+        # print(f"[DDGS] search_json count:{ok_count}<{num} keyword:{len(keyword_group_list)} result:{len(search_results)}")
         if search_exception is None and len(keyword_group_list)>0 and (now-search_time)>search_interval:
             try:
                 # 検索する
                 gk:str = keyword_group_list.pop(0)
+                print(f"[DDGS] search_json start {gk}")
                 t11:float = time.time()
                 group_results:list[LinkInfo] = await _a_duckduckgo_search_api( gk, timelimit=timelimit, lang=lang, num=search_num, debug=debug )
                 t12:float = time.time()
@@ -246,14 +258,17 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
                         duplicate[link] = 'x'
                         search_results.insert( ins*2+1, item )
                         ins+=1
+                print(f"[DDGS] search_json end {gk} result:{len(search_results)}")
             except Exception as ex:
                 search_exception = ex
+                print(f"[DDGS] search_json {str(ex)}")
         # テキスト化タスク
         while len(task_list)<3 and len(search_results)>0:
             item = search_results.pop(0)
             task_count+=1
             task:Task[tuple[LinkInfo|None,bool]] = asyncio.create_task( _a_th_duckduckgo_search_get_text( item, prompt_fmt=prompt, lang=lang, usage=usage, debug=debug ), name=f"T{task_count}" )
             task_list.append( task )
+            print(f"[DDGS.TASK] append {task.get_name()} count:{len(task_list)}")
         # 結果集計
         new_task_list:list[Task[tuple[LinkInfo|None,bool]]] = []
         for task in task_list:
@@ -292,6 +307,8 @@ async def a_duckduckgo_search_json( keyword:str, *,max_length:int=800, messages:
             print(f"[DDGS2.TASK] cancel {task.get_name()}")
         try:
             task.cancel()
+            while not task.cancelled() and not task.done():
+                await asyncio.sleep(0.02)
         except:
             pass
 
