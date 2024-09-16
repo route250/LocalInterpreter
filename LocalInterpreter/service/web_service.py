@@ -4,6 +4,7 @@ import traceback
 from LocalInterpreter.service.local_service import QuartServiceBase, ServiceParam, ServiceResponse
 import LocalInterpreter.utils.web as web
 import LocalInterpreter.utils.trends as trends
+from LocalInterpreter.utils.tavily_utils import WebContent, WebContentCache
 
 import logging
 logger = logging.getLogger('WebSrv')
@@ -11,8 +12,9 @@ logger = logging.getLogger('WebSrv')
 INP_KEYWORD = 'keyword'
 OUT_RESULTS = 'results'
 class WebSearchService(QuartServiceBase):
-    def __init__(self):
+    def __init__(self,webcache:WebContentCache):
         super().__init__('post')
+        self._cache:WebContentCache = webcache
         self.summary = 'google search api'
         self.description = 'google search api'
         self.params.append( ServiceParam(
@@ -37,7 +39,8 @@ class WebSearchService(QuartServiceBase):
         if not keyword:
             return f'No {INP_KEYWORD} provided', 400
         try:
-            result:str = web.duckduckgo_search( keyword, messages=messages, usage=usage, debug=debug )
+            #result:str = web.duckduckgo_search( keyword, messages=messages, usage=usage, debug=debug )
+            result:str = self._cache.query_as_text( keyword, messages=messages, usage=usage, debug=debug )
             return result, 200
         except Exception as e:
             # ToDo ratelimit
@@ -47,8 +50,9 @@ class WebSearchService(QuartServiceBase):
 INP_URL = 'url'
 OUT_CONTENT = 'content'
 class WebGetService(QuartServiceBase):
-    def __init__(self):
+    def __init__(self,webcache:WebContentCache):
         super().__init__('post')
+        self._cache:WebContentCache = webcache
         self.summary = 'get content from web page'
         self.description = 'get html from web page and convert to content by text'
         self.params.append( ServiceParam(
@@ -70,7 +74,9 @@ class WebGetService(QuartServiceBase):
             return f'No {INP_URL} provided', 400
         limit = 1000
         try:
-            result:str|None = web.get_text_from_url( url )
+            result:str|None = self._cache.get_text_from_url( url )
+            if result is None:
+                result = web.get_text_from_url( url )
             if not result or len(result)==0:
                 result = f"Can not extracted from {url}."
             elif len(result)<limit:

@@ -11,7 +11,7 @@ from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall, ChoiceD
 
 from LocalInterpreter.service.schema import ServiceSchema, BaseService
 from LocalInterpreter.service.local_service import QuartServiceBase
-from LocalInterpreter.service.web_service import WebGetService, WebSearchService, WebTrendService
+#from LocalInterpreter.service.web_service import WebGetService, WebSearchService, WebTrendService
 
 import logging
 logger = logging.getLogger('OpenAIsrv')
